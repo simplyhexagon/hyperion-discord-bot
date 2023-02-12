@@ -16,12 +16,12 @@ If you don't have pip installed on your system yet, please search the internet h
 On first launch the bot generates a `config.json` which it will read on the next launch.
 
 Before the 2nd startup, please fill in the contents appropriately
-    - Path to ffmpeg
-    - Path to yt-dlp
-    - Production token
-        - Token used for deploying the discord bot in "production"
-    - Development token
-        - Token used if you have a separate application registered as your "test build"
+- Path to ffmpeg
+- Path to yt-dlp
+- Production token
+    - Token used for deploying the discord bot in "production"
+- Development token
+    - Token used if you have a separate application registered as your "test build"
 
 ### ffmpeg and yt-dlp
 
