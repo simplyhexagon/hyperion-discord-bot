@@ -17,6 +17,8 @@ import string
 import random
 import subprocess
 
+#import ./admin.py
+
 #!SECTION Checking if config file exists
 if os.path.exists("./config.json"):
     with open("./config.json") as config:
@@ -37,7 +39,7 @@ else:
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.1.0"
+BOT_VERSION: str = "0.2.3"
 
 # Vars
 bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
@@ -79,12 +81,15 @@ async def audio_delete():
     else:
         path = f"{os.getcwd()}/au_temp/"
 
+    await logger(1, f"Path is {path}")
+
     audiofiles = os.listdir(path)
 
     for item in audiofiles:
         if(item.endswith('.mp3')):
-            await logger(1, f"Removing file: {os.path.join(audiofiles, item)}")
-            os.remove(os.path.join(audiofiles, item))
+            removefile = str(os.path.join(path, item))
+            await logger(1, f"Removing file: {removefile}")
+            os.remove(removefile)
 
 @bot.event
 async def on_ready():
@@ -106,7 +111,10 @@ async def on_ready():
 
     await logger(1, f"Logged in as {bot.user}")
     await logger(1, "Setting status")
-    activity = discord.Game(name="`/commands`", type=3)
+    if(IS_BOT_DEV):
+        activity = discord.Game(name="**Under development!**", type=3)
+    else:
+        activity = discord.Game(name="*/commands*", type=3)
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
     try:
@@ -123,7 +131,9 @@ async def on_ready():
 async def ping(interaction: discord.Interaction):
     """Testing bot availability"""
     await logger(4, f"\"ping\" command was called by {interaction.user.name}")
-    await interaction.response.send_message(f"*Pong!*")
+    latency = bot.latency * 1000
+    latency = round(latency, 0)
+    await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`")
 
 @bot.tree.command(name="echo")
 @app_commands.describe(echo_content = "Content after the \"/echo\" command that gets echoed back")
