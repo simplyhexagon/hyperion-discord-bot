@@ -11,6 +11,7 @@ import nacl
 
 import json
 import os
+import platform
 import time
 import string
 import random
@@ -39,11 +40,9 @@ IS_BOT_DEV = True
 BOT_VERSION: str = "0.1.0"
 
 # Vars
-#intents_ = discord.Intents.all()
-#intents_.message_content = True
-
-# client = discord.Client(intents=intents_)
 bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
+global is_os_windows
+is_os_windows = False
 
 # Setting up log file
 log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
@@ -75,16 +74,28 @@ async def logger(level, message):
     print(output)
 
 async def audio_delete():
-    path = f"{os.getcwd()}\\au_temp\\"
-    for file_name in os.listdir(path):
-        # construct full file path
-        file = path + file_name
-        if os.path.isfile(file):
-            await logger(1, f'Deleting file: {file}')
-            os.remove(file)
+    if(is_os_windows):
+        path = f"{os.getcwd()}\\au_temp\\"
+    else:
+        path = f"{os.getcwd()}/au_temp/"
+
+    audiofiles = os.listdir(path)
+
+    for item in audiofiles:
+        if(item.endswith('.mp3')):
+            await logger(1, f"Removing file: {os.path.join(audiofiles, item)}")
+            os.remove(os.path.join(audiofiles, item))
 
 @bot.event
 async def on_ready():
+    global is_os_windows
+    if(platform.system() == "Windows"):
+        is_os_windows = True
+        await logger(2, "Bot is running on Windows!!!")
+    else:
+        is_os_windows = False
+        await logger(2, "Bot is running on *nix")
+    
     if(IS_BOT_DEV):
         await logger(2, "Bot was launched as a test instance")
     else:
@@ -95,7 +106,7 @@ async def on_ready():
 
     await logger(1, f"Logged in as {bot.user}")
     await logger(1, "Setting status")
-    activity = discord.Game(name="Parancsok: /commands", type=3)
+    activity = discord.Game(name="`/commands`", type=3)
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
     try:
@@ -110,108 +121,113 @@ async def on_ready():
 # Slash commands
 @bot.tree.command(name="ping")
 async def ping(interaction: discord.Interaction):
-    """Bot elérhetőségének tesztelése"""
+    """Testing bot availability"""
     await logger(4, f"\"ping\" command was called by {interaction.user.name}")
     await interaction.response.send_message(f"*Pong!*")
 
 @bot.tree.command(name="echo")
-@app_commands.describe(echo_content = "A tartalom az \"/echo\" parancs után, amit visszaküldök")
+@app_commands.describe(echo_content = "Content after the \"/echo\" command that gets echoed back")
 async def echo(interaction: discord.Interaction, echo_content: str):
-    """Az `echo_content` visszaírása egy kis plusszal"""
-    await interaction.response.send_message(f"{interaction.user.mention} ezt mondja:\n`{echo_content}`")
+    """Echo the content"""
+    await interaction.response.send_message(f"`{echo_content}`")
 
 @bot.tree.command(name="about")
 async def about(interaction: discord.Interaction):
-    """Információ a botról"""
-    response: str = f"*Hyperion {BOT_VERSION}*\nKészítette: hexagon#1337\nTovábbi információért írd be a `/commands` parancsot!"
+    """Information about the bot"""
+    response: str = f"*Hyperion {BOT_VERSION}*\Created by: hexagon#1337\nUse `/commands` for more info!"
     await logger(4, f"\"about\" command was called by {interaction.user.name}")
     await interaction.response.send_message(f"{response}")
 
 
 @bot.tree.command(name="join")
 async def join(interaction: discord.Interaction):
-    """Csatlakozás hangos csevegőszobához"""
+    """Join voice channel"""
     if interaction.user.voice.channel is not None:
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"Megpróbálok csatlakozni ehhez a hangos csevegőszobához: {voicechannel.name}")
+        await interaction.response.send_message(f"I am now attempting to join this voice channel: {voicechannel.name}")
         try:
             global voiceclient
             voiceclient = await voicechannel.connect(self_deaf=True)
-            await msgchannel.send(f"Sikeresen csatlakoztam ide: {voicechannel.name}")
+            await msgchannel.send(f"Successfully joined {voicechannel.name}")
         except Exception as ex:
-            await msgchannel.send("Hiba történt a bot futása során!")
+            await msgchannel.send("An error occured!")
             await logger(3, f"An exception occured: {ex}")
     else:
         await logger(1, f"{interaction.user.name} tried to invite bot to voice, but user isn't in a voice channel!")
-        await interaction.response.send_message("Nem vagy csatlakozva hangos csevegőszobához!", ephemeral=True)
+        await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
 
 @bot.tree.command(name="leave")
 async def leave(interaction: discord.Interaction):
-    """Hangos csevegőszoba elhagyása"""
+    """Leave voice channel"""
     try:
         await logger(1, f"Disconnecting voice client")
         vchannel: discord.VoiceChannel = voiceclient.channel
         if vchannel.name == interaction.user.voice.channel.name:
             await voiceclient.disconnect()
-            await interaction.response.send_message("Sikeresen elhagytam a szobát!", ephemeral=True)
+            await interaction.response.send_message("Successfully left voice channel!", ephemeral=True)
             await logger(1, "Voice client disconnected")
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
-        await interaction.response.send_message("Hiba történt a bot futása során!", ephemeral=True)
+        await interaction.response.send_message("An error occured!", ephemeral=True)
 
 @bot.tree.command(name="voicetest")
 async def voicetest(interaction: discord.Interaction):
-    """\"Beszéd\" használatának tesztelése"""
+    """For testing voice capabilities"""
     if interaction.user.voice.channel is not None:
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"Megpróbálok csatlakozni ehhez a hangos csevegőszobához: `{voicechannel.name}`")
+        await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
         try:
             global voiceclient
             voiceclient = await voicechannel.connect(self_deaf=True)
-            await msgchannel.send(f"Sikeresen csatlakoztam ide: `{voicechannel.name}`")
+            await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
             
         except Exception as ex:
-            await msgchannel.send("Hiba történt a bot futása során!")
+            await msgchannel.send("An error occured!")
             await logger(3, f"An exception occured: {ex}")
 
-        await msgchannel.send(f"Tesztfájl lejátszása...")
+        await msgchannel.send(f"Playing test audio file...")
         sourcefile = FFmpegPCMAudio("bot_test_voice.mp3", executable=ffmpeg_path)
         player = voiceclient.play(sourcefile)
     else:
         await logger(1, f"{interaction.user.name} tried to invite bot to voice, but user isn't in a voice channel!")
-        await interaction.response.send_message("Nem vagy csatlakozva hangos csevegőszobához!", ephemeral=True)
+        await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
 
 
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube videó URL-je")
 async def play(interaction: discord.Interaction, url: str):
-    """Zene lejátszása YouTube-ról (egyelőre link alapján)"""
-    await interaction.response.send_message("Zenelejátszási folyamat indítása")
+    """Music playback from YouTube (only available with URL, no search)"""
+    await interaction.response.send_message("Starting music playback procedure...")
     queuelist = list(())
     if interaction.user.voice.channel is not None:
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name} called the bot into \"{voicechannel.name}\" voice channel to play media")
         try:
-            await msgchannel.send(f"Hanganyag letöltése...")
+            await msgchannel.send(f"Loading sound data...")
             # Generating a random string for destination
             letters = string.ascii_lowercase
             outputstring = ''.join(random.choice(letters) for i in range(10))
             await logger(1, f"Random file path: {outputstring}")
 
-            command = f"{os.getcwd()}\\{ytdl_path} {url} -f 251 -x --audio-format mp3 --output {os.getcwd()}\\au_temp\{outputstring}.%(ext)s"
+            if(is_os_windows):
+                command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}.%(ext)s"
+
+            else:
+                command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}.%(ext)s"
+
             await logger(1, f"Bot is currently waiting for this to complete:\n{command}")
             #os.system(command=command)            
             process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
             while process.wait():
                 time.sleep(0.1)
 
-            await msgchannel.send(f"Megpróbálok csatlakozni ehhez a hangos csevegőszobához: `{voicechannel.name}`")
+            await msgchannel.send(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
             try:
                 global voiceclient
                 voiceclient = await voicechannel.connect(self_deaf=True)
@@ -220,25 +236,31 @@ async def play(interaction: discord.Interaction, url: str):
                 await logger(3, f"An exception occured: {ex}")
 
             if not voiceclient.is_playing():
-                await msgchannel.send(f"Sikeresen csatlakoztam ide: `{voicechannel.name}`")
-                sourcefile = FFmpegPCMAudio(f"./au_temp/{outputstring}.mp3", executable=ffmpeg_path)
+                await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
+
+                if(is_os_windows):
+                    sourcefile = FFmpegPCMAudio(f".\\au_temp\\{outputstring}.mp3", executable=ffmpeg_path)
+                else:
+                    sourcefile = FFmpegPCMAudio(f"./au_temp/{outputstring}.mp3", executable=ffmpeg_path)
+
+
                 player = voiceclient.play(sourcefile)
             
             elif voiceclient.is_playing():
                 queuelist.append(url)
-                await msgchannel.send("Kért zene várólistához adva")
+                await msgchannel.send("Request queued")
 
             
         except Exception as ex:
-            await msgchannel.send("Hiba történt a bot futása során!")
+            await msgchannel.send("An error occured!")
             await logger(3, f"An exception occured: {ex}")
     else:
         await logger(1, f"{interaction.user.name} tried to invite bot to voice, but user isn't in a voice channel!")
-        await msgchannel.send("Nem vagy csatlakozva hangos csevegőszobához!")
+        await msgchannel.send("You are not connected to a voice channel!")
 
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction):
-    """Jelenleg lejátszás alatt levő zene leállítása"""
+    """Stop current music playback"""
     try:
         await logger(1, f"Stopping music playback")
         vclients = bot.voice_clients
@@ -246,29 +268,29 @@ async def stop(interaction: discord.Interaction):
             vchannel: discord.VoiceChannel = vclient.channel
             if vchannel.name == interaction.user.voice.channel.name:
                 vclient.stop()
-                await interaction.response.send_message("Visszajátszás sikeresen leállítva!", ephemeral=True)
-                await logger(1, "Voice client disconnected")
+                await interaction.response.send_message("Playback stopped!", ephemeral=True)
+                await logger(1, "Voice client stopped playback")
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
-        await interaction.response.send_message("Hiba történt a bot futása során!", ephemeral=True)
+        await interaction.response.send_message("An error occured!", ephemeral=True)
 
 
 @bot.tree.command(name="commands")
 async def commands(interaction: discord.Interaction):
-    """Parancsok listája"""
+    """List of commands"""
     response: str = f'''
-    `/commands`: Parancsok listája
-    `/ping`: Bot elérhetőségének tesztelése
-    `/echo <üzenet>`: Az üzenet visszaírása egy kis plusszal
-    `/about`: Információ a botról
-    `/join`: Csatlakozás hangos csevegőszobához
-    `/leave`: Hangos csevegőszoba elhagyása
-    `/voicetest`: \"Beszéd\" használatának tesztelése
-    `/play <YouTube Link>`: hang lejátszása YouTube-ról
-    `/stop`: Lejátszás megállítása
+    `/commands`: List of commands
+    `/ping`: Test bot availability
+    `/echo <message>`: Echo the message back
+    `/about`: Information about the bot
+    `/join`: Join your voice channel
+    `/leave`: Leave your voice channel
+    `/voicetest`: Test voice capabilities
+    `/play <YouTube URL>`: Audio playback from YouTube
+    `/stop`: Stop playback
     '''
-    await interaction.response.send_message(f"Elérhető parancsok: \n{response}")
+    await interaction.response.send_message(f"Available commands: \n{response}")
 
 if(IS_BOT_DEV):
     # Hyperion Teszt példány
