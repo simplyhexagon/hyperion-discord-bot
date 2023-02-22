@@ -109,10 +109,15 @@ async def on_ready():
 
     await logger(1, f"Logged in as {bot.user}")
     await logger(1, "Setting status")
+
+    # Uncomment if you only want one status message 
+    # activity = discord.Game(name="/commands for more info", type=3)
+
+    # Comment these lines if you don't want separate status messages for DEV and PROD
     if(IS_BOT_DEV):
-        activity = discord.Game(name="**Under development!**", type=3)
+        activity = discord.Game(name="Under development!", type=3)
     else:
-        activity = discord.Game(name="*/commands*", type=3)
+        activity = discord.Game(name="/commands", type=3)
     await bot.change_presence(status=discord.Status.online, activity=activity)
 
     try:
@@ -132,6 +137,7 @@ async def ping(interaction: discord.Interaction):
     latency = bot.latency * 1000
     latency = round(latency, 0)
     await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`")
+    await logger(1, f"Current ping is {latency}ms")
 
 @bot.tree.command(name="echo")
 @app_commands.describe(echo_content = "Content after the \"/echo\" command that gets echoed back")
@@ -184,102 +190,103 @@ async def leave(interaction: discord.Interaction):
 @bot.tree.command(name="voicetest")
 async def voicetest(interaction: discord.Interaction):
     """For testing voice capabilities"""
-    if interaction.user.voice.channel is not None:
-        voicechannel = interaction.user.voice.channel
-        msgchannel = interaction.channel
-        await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
-        try:
-            global voiceclient
-            voiceclient = await voicechannel.connect(self_deaf=True)
-            await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
-            
-        except Exception as ex:
-            await msgchannel.send("An error occured!")
-            await logger(3, f"An exception occured: {ex}")
+    try:
+        if interaction.user.voice.channel is not None:
+            voicechannel = interaction.user.voice.channel
+            msgchannel = interaction.channel
+            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
+            await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
+            try:
+                global voiceclient
+                voiceclient = await voicechannel.connect(self_deaf=True)
+                await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
+                
+            except Exception as ex:
+                await msgchannel.send("An error occured!")
+                await logger(3, f"An exception occured: {ex}")
 
-        await msgchannel.send(f"Playing test audio file...")
-        sourcefile = FFmpegPCMAudio("bot_test_voice.mp3", executable=ffmpeg_path)
-        player = voiceclient.play(sourcefile)
-    else:
-        await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-        await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
+            await msgchannel.send(f"Playing test audio file...")
+            sourcefile = FFmpegPCMAudio("bot_test_voice.mp3", executable=ffmpeg_path)
+            player = voiceclient.play(sourcefile)
+        else:
+            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
+            await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
+    except Exception as ex:
+        await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
+        await logger(3, f"An exception occured while running the bot\n\t{ex}")
 
 
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube video URL")
 async def play(interaction: discord.Interaction, url: str):
     """Music playback from YouTube (only available with URL, no search)"""
-    await interaction.response.send_message("Starting music playback procedure...")
-    if interaction.user.voice.channel is not None:
-        voicechannel = interaction.user.voice.channel
-        msgchannel = interaction.channel
-        await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
+    try:
+        await interaction.response.send_message("Starting music playback procedure...")
+        if interaction.user.voice.channel is not None:
+            voicechannel = interaction.user.voice.channel
+            msgchannel = interaction.channel
+            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
 
-        await msgchannel.send(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
-        try:
-            global voiceclient
-            voiceclient = await voicechannel.connect(self_deaf=True)
-            await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
-            
-        except Exception as ex:
-            await logger(3, f"An exception occured: {ex}")
-
-        if not voiceclient.is_playing():
+            await msgchannel.send(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
             try:
-                await msgchannel.send(f"Loading sound data...")
-                # Generating a random string for destination
-                letters = string.ascii_lowercase
-                outputstring = ''.join(random.choice(letters) for i in range(10))
-                await logger(1, f"Random file path: {outputstring}")
+                global voiceclient
+                voiceclient = await voicechannel.connect(self_deaf=True)
+                await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
+                
+            except Exception as ex:
+                await logger(3, f"An exception occured: {ex}")
 
-                if(is_os_windows):
-                    command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}.%(ext)s"
+            if not voiceclient.is_playing():
+                try:
+                    if(is_os_windows):
+                        pingsourcefile = FFmpegPCMAudio(f".\\wait.mp3", executable=ffmpeg_path)
+                    else:
+                        pingsourcefile = FFmpegPCMAudio(f"./wait.mp3", executable=ffmpeg_path)
 
-                else:
-                    command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}.%(ext)s"
-
-                await logger(1, f"Bot is currently waiting for this to complete:\n{command}")
-                #os.system(command=command)           
-                process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-                while process.wait():
-                    time.sleep(0.1)
-
-                    
+                    await msgchannel.send(f"Loading sound data...")
+                    # Generating a random string for destination
+                    letters = string.ascii_lowercase
+                    outputstring = ''.join(random.choice(letters) for i in range(10))
+                    await logger(1, f"Random file path: {outputstring}")
 
                     if(is_os_windows):
-                        sourcefile = FFmpegPCMAudio(f".\\au_temp\\{outputstring}.mp3", executable=ffmpeg_path)
+                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}.%(ext)s"
+
                     else:
-                        sourcefile = FFmpegPCMAudio(f"./au_temp/{outputstring}.mp3", executable=ffmpeg_path)
+                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}.%(ext)s"
 
-                    player = voiceclient.play(sourcefile)
+                    await logger(1, f"Bot is currently waiting for this to complete:\n{command}")        
+                    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+                    while (process.poll() != 0):
+                        time.sleep(3)
+                        await logger(1, "Still waiting for process to finish...")
+                        player = voiceclient.play(pingsourcefile)
 
-                
+                    if voiceclient.is_playing():
+                        voiceclient.stop()
 
-                """elif voiceclient.is_playing():
-                    queuelist.append(url)
-                    await msgchannel.send("Request queued")
-                    #while voiceclient.is_playing():
-
-                    if not voiceclient.is_playing():
-                        # Playing next song in queue
                         if(is_os_windows):
                             sourcefile = FFmpegPCMAudio(f".\\au_temp\\{outputstring}.mp3", executable=ffmpeg_path)
                         else:
                             sourcefile = FFmpegPCMAudio(f"./au_temp/{outputstring}.mp3", executable=ffmpeg_path)
 
-                        player = voiceclient.play(sourcefile)"""   
+                        await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
+                        await msgchannel.send("Starting playback...")
+                        player = voiceclient.play(sourcefile) 
 
-            except Exception as ex:
-                await msgchannel.send("An error occured!")
-                await logger(3, f"An exception occured: {ex}")
+                except Exception as ex:
+                    await msgchannel.send("An error occured!")
+                    await logger(3, f"An exception occured: {ex}")
 
-        elif voiceclient.is_playing():
-            await msgchannel.send("I am already playing an audio file!")
+            elif voiceclient.is_playing():
+                await msgchannel.send("I am already playing an audio file!")
 
-    else:
-        await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-        await msgchannel.send("You are not connected to a voice channel!")
+        else:
+            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
+            await msgchannel.send("You are not connected to a voice channel!")
+    except Exception as ex:
+        await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
+        await logger(3, f"An exception occured while running the bot\n\t{ex}")
                 
 
 @bot.tree.command(name="stop")
@@ -324,27 +331,51 @@ async def commands(interaction: discord.Interaction):
 # Use the role names of your own server here
 adminRoleNames = ["Captain", "Command Crew"]
 
-@bot.tree.command(name="admintest")
-async def admintest(interaction: discord.Interaction, user: discord.Member):
-    """Testing if you are admin or not"""
-    await logger(1, f"Checking if {interaction.user.name}#{interaction.user.discriminator} is admin or not")
+# This function is only for checking if the target is an admin
+async def isUserAdmin(user: discord.Member):
     userIsAdmin: bool = False
     for item in adminRoleNames:
-        role = discord.utils.find(lambda r: r.name == item, interaction.message.guild.roles)
+        role = discord.utils.find(lambda r: r.name == item, user.guild.roles)
         if role in user.roles:
             userIsAdmin = True
-    
-    if(userIsAdmin):
-        await interaction.response.send_message(f"You are an admin!", ephemeral=True)
+
+    return userIsAdmin
+# Admin check END
+
+# This function is only for checking if the command's user is an admin
+async def isUserAdmin(user: discord.Interaction.user):
+    userIsAdmin: bool = False
+    for item in adminRoleNames:
+        role = discord.utils.find(lambda r: r.name == item, user.guild.roles)
+        if role in user.roles:
+            userIsAdmin = True
+
+    return userIsAdmin
+# Admin check END
+
+
+@bot.tree.command(name="dm")
+async def dm(interaction: discord.Interaction, user: discord.Member, message: str):
+    """Send a test DM to the selected user"""
+    await logger(1, f"User {interaction.user.name}#{interaction.user.discriminator} wants to send a DM to {user.name}#{user.discriminator} through the bot")
+    sender = interaction.user
+    if(await isUserAdmin(sender)):
+        # Proceed
+        await logger(4, f"Message contents are as follows:\n\t{message}")
+        target = await bot.fetch_user(user.id)
+        if(await target.send(message)):
+            await interaction.response.send_message(f"Message sent!", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"Failed to deliver message!", ephemeral=True)
     else:
-        await interaction.response.send_message(f"You are not an admin!", ephemeral=True)
+        await interaction.response.send_message(f"You don't have the rights!", ephemeral=True)
     
 
 #######################################
 
 if(IS_BOT_DEV):
-    # Hyperion Teszt példány
+    # Log in as test instance
     bot.run(dev_token)
 else:
-    # Hyperion Éles
+    # Log in as live instance
     bot.run(prod_token)
