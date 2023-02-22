@@ -9,6 +9,7 @@
         - Added `/dm` for testing purposes, will be removed when we reach a certain stage in development
     - General
         - Added try-catch blocks to possible failure points (voice client connection)
+        - CRLF to LF
 
 ### 2022-02-12
 
