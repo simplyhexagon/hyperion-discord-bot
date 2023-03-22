@@ -89,6 +89,20 @@ async def audio_delete():
             await logger(1, f"Removing file: {removefile}")
             os.remove(removefile)
 
+async def update_ytdlp():
+    if(is_os_windows):
+        command = f"{ytdl_path} -U"
+
+    else:
+        command = f"{ytdl_path} -U"
+
+    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
+    while (process.poll() != 0):
+        time.sleep(1)
+        await logger(1, "Waiting for yt-dlp to update...")
+
+    
+
 @bot.event
 async def on_ready():
     global is_os_windows
@@ -106,6 +120,10 @@ async def on_ready():
 
     await logger(1, "Sanitising audio folder...")
     await audio_delete()
+
+    await logger(1, "Updating yt-dlp...")
+    await update_ytdlp()
+
 
     await logger(1, f"Logged in as {bot.user}")
     await logger(1, "Setting status")
