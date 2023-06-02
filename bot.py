@@ -1,3 +1,4 @@
+#!/bin/python
 # Imports
 import discord
 from discord import app_commands
@@ -17,6 +18,22 @@ import string
 import random
 import subprocess
 
+import sqlite3
+
+# Constants
+IS_BOT_DEV = True
+BOT_VERSION: str = "0.2.3"
+
+# Vars
+bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
+global is_os_windows
+is_os_windows = False
+global database
+
+# Setting up log file
+log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
+
+
 #!SECTION Checking if config file exists
 if os.path.exists("./config.json"):
     with open("./config.json") as config:
@@ -35,17 +52,6 @@ else:
         print("\nPlease fill in the tokens in your config.json and restart the bot!")
         exit()
 
-# Constants
-IS_BOT_DEV = True
-BOT_VERSION: str = "0.2.3"
-
-# Vars
-bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
-global is_os_windows
-is_os_windows = False
-
-# Setting up log file
-log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
 
 async def logger(level, message):
     now = datetime.datetime.now()
@@ -101,6 +107,33 @@ async def update_ytdlp():
         time.sleep(1)
         await logger(1, "Waiting for yt-dlp to update...")
 
+async def dbInit():
+    await logger(1, "Setting up database connection")
+    try:
+        global database
+        if(is_os_windows == True):
+            database = sqlite3.connect(".\\bot.db")
+        else:
+            database = sqlite3.connect("./bot.db")
+
+        # Read database initialisation
+        if(is_os_windows == True):
+            loadDB = open('.\\initialDB.sql')
+        else:
+            loadDB = open('./initialDB.sql')
+
+        dbstring = loadDB.read()
+
+        cursor = database.cursor()
+        cursor.execute(dbstring)
+
+        cursor.close()
+        loadDB.close()
+
+    except sqlite3.Error as e:
+        await logger(3, f"Error initialising database\n{e}")
+        exit()
+
     
 
 @bot.event
@@ -123,6 +156,9 @@ async def on_ready():
 
     await logger(1, "Updating yt-dlp...")
     await update_ytdlp()
+
+    await logger(1, "Initialising database...")
+    await dbInit()
 
 
     await logger(1, f"Logged in as {bot.user}")
@@ -268,10 +304,10 @@ async def play(interaction: discord.Interaction, url: str):
                     await logger(1, f"Random file path: {outputstring}")
 
                     if(is_os_windows):
-                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}.%(ext)s"
+                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}"
 
                     else:
-                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}.%(ext)s"
+                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}"
 
                     await logger(1, f"Bot is currently waiting for this to complete:\n{command}")        
                     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
