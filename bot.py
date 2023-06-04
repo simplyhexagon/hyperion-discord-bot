@@ -27,8 +27,11 @@ import re
 IS_BOT_DEV = True
 BOT_VERSION: str = "0.5"
 
+CONFIG_PATH: str = "./configs/config.json"
+TOKEN_PATH: str = "./configs/token.json"
+BADWORDS_PATH: str = "./configs/badwords.json"
+
 # Vars
-bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
 global is_os_windows
 is_os_windows = False
 global database
@@ -39,11 +42,26 @@ badWordsDict = []
 # Setting up log file
 log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
 
+logo: str = """  _   _                       _             
+ | | | |_   _ _ __   ___ _ __(_) ___  _ __  
+ | |_| | | | | '_ \ / _ \ '__| |/ _ \| '_ \ 
+ |  _  | |_| | |_) |  __/ |  | | (_) | | | |
+ |_| |_|\__, | .__/ \___|_|  |_|\___/|_| |_|
+        |___/|_|                            """
 
+output:str = f"\n\n\nHyperion Discord Bot {BOT_VERSION}, developed by simplyhexagon\n\n{logo}\n\n"
+logging.info(output)
+print(output)
+
+logging.info("Loading...\n")
+print("Loading...\n")
+
+# Displaying splash to console and logfile
+# Splash end
 
 #!SECTION Checking if config file exists
-if os.path.exists("./config.json"):
-    with open("./config.json") as config:
+if os.path.exists(CONFIG_PATH):
+    with open(CONFIG_PATH) as config:
         configData = json.load(config)
         ffmpeg_path = configData["FFMPEG_PATH"]
         ytdl_path = configData["YTDL_PATH"]
@@ -56,7 +74,7 @@ else:
     print("config.json does not exist in the current directory!")
     configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": ""}
 
-    with open("./config.json", "w+") as f:
+    with open(CONFIG_PATH, "w+") as f:
         json.dump(configTemplate, f)
         print("created config template")
         print("\nPlease fill in the ffmpeg and yt-dlp path in the config.json file to continue")
@@ -64,8 +82,8 @@ else:
 
 
 #!SECTION Checking if TOKEN file exists
-if os.path.exists("./token.json"):
-    with open("./token.json") as tokens:
+if os.path.exists(TOKEN_PATH):
+    with open(TOKEN_PATH) as tokens:
         tokenData = json.load(tokens)
         dev_token = tokenData["DEV_TOKEN"]
         prod_token = tokenData["PROD_TOKEN"]
@@ -77,7 +95,7 @@ else:
     print("File token.json does not exist")
     configTemplate = {"PROD_TOKEN": "", "DEV_TOKEN": ""}
 
-    with open("./token.json", "w+") as f:
+    with open(TOKEN_PATH, "w+") as f:
         json.dump(configTemplate, f)
         print("Created token config template")
         print("\nPlease fill in the tokens in your token.json and restart the bot!")
@@ -85,8 +103,8 @@ else:
 
 async def badWords():
     #!SECTION Checking if TOKEN file exists
-    if os.path.exists("./badwords.json"):
-        with open("./badwords.json") as badwords:
+    if os.path.exists(BADWORDS_PATH):
+        with open(BADWORDS_PATH) as badwords:
             badWordsData = json.load(badwords)
             global badWordsDict
             badWordsDict = badWordsData["badwords"]
@@ -95,10 +113,10 @@ async def badWords():
                 print("There are no banned words specified.\n Fill in the badwords.json and restart the bot")
                 exit()
     else:
-        print("File token.json does not exist")
+        print("File badwords.json does not exist")
         configTemplate = {"badwords": ["word1", "word2"]}
 
-        with open("./badwords.json", "w+") as f:
+        with open(BADWORDS_PATH, "w+") as f:
             json.dump(configTemplate, f)
             print("Created bad words file template")
             print("\nPlease fill in the bad words list to continue!")
@@ -163,15 +181,15 @@ async def dbInit():
     try:
         global database
         if(is_os_windows == True):
-            database = sqlite3.connect(".\\bot.db")
+            database = sqlite3.connect("bot.db")
         else:
-            database = sqlite3.connect("./bot.db")
+            database = sqlite3.connect("bot.db")
 
         # Read database initialisation
         if(is_os_windows == True):
-            loadDB = open('.\\initialDB.sql')
+            loadDB = open('.\\assets\\initialDB.sql')
         else:
-            loadDB = open('./initialDB.sql')
+            loadDB = open('./assets/initialDB.sql')
 
         dbstring = loadDB.read().split("--A")
 
@@ -201,12 +219,12 @@ async def dbconn():
     except Exception as e:
         await logger(3, "An error occured while attempting database r/w")
 
+bot = commands.Bot(command_prefix="", intents= discord.Intents.all())
 
 @bot.event
 async def on_ready():
     await logger(1, "Loading list of banned words")
     await badWords()
-
 
     global is_os_windows
     if(platform.system() == "Windows"):
@@ -330,7 +348,10 @@ async def voicetest(interaction: discord.Interaction):
                 await logger(3, f"An exception occured: {ex}")
 
             await msgchannel.send(f"Playing test audio file...")
-            sourcefile = FFmpegPCMAudio("bot_test_voice.mp3", executable=ffmpeg_path)
+            if is_os_windows:
+                sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
+            else:
+                sourcefile = FFmpegPCMAudio("./assets/bot_test_voice.mp3", executable=ffmpeg_path)
             player = voiceclient.play(sourcefile)
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
@@ -340,63 +361,76 @@ async def voicetest(interaction: discord.Interaction):
         await logger(3, f"An exception occured while running the bot\n\t{ex}")
 
 
+def download_music(url: str):
+    # Generating a random string for destination
+    letters = string.ascii_lowercase
+    outputstring = ''.join(random.choice(letters) for i in range(10))
+
+    if(is_os_windows):
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f".\\au_temp\\{outputstring}"]
+        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \".\\au_temp\\{outputstring}\""
+
+    else:
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f"./au_temp/{outputstring}"]
+        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \"./au_temp/{outputstring}\""      
+    result = subprocess.run(command)
+
+    return outputstring
+
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube video URL")
 async def play(interaction: discord.Interaction, url: str):
     """Music playback from YouTube (only available with URL, no search)"""
     try:
-        await interaction.response.send_message("Starting music playback procedure...")
         if interaction.user.voice.channel is not None:
             voicechannel = interaction.user.voice.channel
             msgchannel = interaction.channel
-            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
 
-            await msgchannel.send(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
+            await interaction.response.send_message(f"Starting playback of {url} for `#{voicechannel.name}`", ephemeral=True)
+
+            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
             try:
                 global voiceclient
                 voiceclient = await voicechannel.connect(self_deaf=True)
-                await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
+                if(is_os_windows):
+                    pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
+                else:
+                    pingsourcefile = FFmpegPCMAudio(f"./assets/wait.mp3", executable=ffmpeg_path)
+
+                voiceclient.play(pingsourcefile)
+                while voiceclient.is_playing():
+                    await asyncio.sleep(1)
+
                 
             except Exception as ex:
                 await logger(3, f"An exception occured: {ex}")
 
             if not voiceclient.is_playing():
                 try:
+                    
+                    await logger(1, "Start audio download")
+                    result = await bot.loop.run_in_executor(None, download_music, url)
+                    await logger(1, "Stop audio download")
+                    outputstring = result
+                    await logger(1, f"Output string: {outputstring}")
+
+                    
+                    voiceclient.stop()
+                    sourcepath: str = ""
                     if(is_os_windows):
-                        pingsourcefile = FFmpegPCMAudio(f".\\wait.mp3", executable=ffmpeg_path)
+                        sourcepath = f".\\au_temp\\{outputstring}.mp3"
                     else:
-                        pingsourcefile = FFmpegPCMAudio(f"./wait.mp3", executable=ffmpeg_path)
+                        sourcepath = f"./au_temp/{outputstring}.mp3"
 
-                    await msgchannel.send(f"Loading sound data...")
-                    # Generating a random string for destination
-                    letters = string.ascii_lowercase
-                    outputstring = ''.join(random.choice(letters) for i in range(10))
-                    await logger(1, f"Random file path: {outputstring}")
+                    sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
+                    await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
+                    player = voiceclient.play(sourcefile)
 
-                    if(is_os_windows):
-                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output .\\au_temp\\{outputstring}"
+                    while voiceclient.is_playing():
+                        await asyncio.sleep(1)
 
-                    else:
-                        command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output ./au_temp/{outputstring}"
-
-                    await logger(1, f"Bot is currently waiting for this to complete:\n{command}")        
-                    process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-                    while (process.poll() != 0):
-                        time.sleep(3)
-                        await logger(1, "Still waiting for process to finish...")
-                        player = voiceclient.play(pingsourcefile)
-
-                    if voiceclient.is_playing():
-                        voiceclient.stop()
-
-                        if(is_os_windows):
-                            sourcefile = FFmpegPCMAudio(f".\\au_temp\\{outputstring}.mp3", executable=ffmpeg_path)
-                        else:
-                            sourcefile = FFmpegPCMAudio(f"./au_temp/{outputstring}.mp3", executable=ffmpeg_path)
-
-                        await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
-                        await msgchannel.send("Starting playback...")
-                        player = voiceclient.play(sourcefile) 
+                    # Auto-sanitising the music downloads folder
+                    os.remove(sourcepath)
 
                 except Exception as ex:
                     await msgchannel.send("An error occured!")
@@ -404,7 +438,6 @@ async def play(interaction: discord.Interaction, url: str):
 
             elif voiceclient.is_playing():
                 await msgchannel.send("I am already playing an audio file!")
-
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
             await msgchannel.send("You are not connected to a voice channel!")
@@ -446,7 +479,7 @@ async def commands(interaction: discord.Interaction):
     `/play <YouTube URL>`: Audio playback from YouTube
     `/stop`: Stop playback
     '''
-    await interaction.response.send_message(f"Available commands: \n{response}")
+    await interaction.response.send_message(f"Available commands: \n{response}", ephemeral=True)
 
 
 
@@ -480,7 +513,7 @@ async def isUserAdmin(user: discord.Interaction.user):
 
 @bot.tree.command(name="dm")
 async def dm(interaction: discord.Interaction, user: discord.Member, message: str):
-    """Send a test DM to the selected user"""
+    """ADMIN ONLY: Send a test DM to the selected user"""
     await logger(1, f"User {interaction.user.name}#{interaction.user.discriminator} wants to send a DM to {user.name}#{user.discriminator} through the bot")
     sender = interaction.user
     if(await isUserAdmin(sender)):
@@ -492,8 +525,25 @@ async def dm(interaction: discord.Interaction, user: discord.Member, message: st
         else:
             await interaction.response.send_message(f"Failed to deliver message!", ephemeral=True)
     else:
-        await interaction.response.send_message(f"You don't have the rights!", ephemeral=True)
+        await interaction.response.send_message(f"You don't have the rights to perform this action", ephemeral=True)
     
+
+@bot.tree.command(name="sanitiselog")
+async def sanitiselog(interaction: discord.Interaction):
+    """ADMIN ONLY: Sanitise log files"""
+    await logger(1, f"User {interaction.user.name}#{interaction.user.discriminator} wants sanitise log files through the bot")
+    sender = interaction.user
+    if(await isUserAdmin(sender)):
+        # Proceed
+        print("Flushing log file...")
+        try:
+            open('bot.log', 'w').close()
+            await logger(1, f"Log file has been sanitised by user {interaction.user.name}#{interaction.user.discriminator}, started new log file")
+            await interaction.response.send_message(f"Log file flush OK, started new log file", ephemeral=True)
+        except Exception as e:
+            print(f"FAILED TO REMOVE LOG FILE\n{e}")
+    else:
+        await interaction.response.send_message(f"You don't have the rights to perform this action!", ephemeral=True)
 
 #######################################
 
@@ -508,6 +558,7 @@ async def on_message(message):
         # Returns true if it contains a banned word
         if await messageCheck(message.content):
             await message.channel.send(f"{message.author.mention} ! Do not use banned words!")
+            await message.delete()
         
 
 async def messageCheck(message):
