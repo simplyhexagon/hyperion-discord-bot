@@ -25,7 +25,7 @@ import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.5"
+BOT_VERSION: str = "0.5-2"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
@@ -208,7 +208,7 @@ async def dbInit():
         exit()
 
 async def dbconn():
-    await logger(1, "Attempting database r/w")
+    await logger(1, "Database r/w")
     try:
         if(is_os_windows == True):
             database = sqlite3.connect(".\\bot.db")
@@ -290,7 +290,7 @@ async def echo(interaction: discord.Interaction, echo_content: str):
 @bot.tree.command(name="about")
 async def about(interaction: discord.Interaction):
     """Information about the bot"""
-    response: str = f"*Hyperion {BOT_VERSION}*\Created by: hexagon#1337\nUse `/commands` for more info!"
+    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: hexagon#1337\nUse `/commands` for more info!"
     await logger(4, f"\"about\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
     await interaction.response.send_message(f"{response}")
 
@@ -439,7 +439,7 @@ async def play(interaction: discord.Interaction, url: str):
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
             await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
     except Exception as ex:
-        await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
+        await msgchannel.send(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
         await logger(3, f"An exception occured while running the bot\n\t{ex}")
                 
 
@@ -478,6 +478,25 @@ async def commands(interaction: discord.Interaction):
     '''
     await interaction.response.send_message(f"Available commands: \n{response}", ephemeral=True)
 
+
+@bot.tree.command(name="stats")
+async def stats(interaction: discord.Interaction):
+    """Get your messaging stats"""
+    try:
+        database = dbInit()
+        c = database.cursor()
+        query = c.execute(f"SELECT xp, userlevel FROM levels WHERE uid = {message.author.id}")
+        result = query.fetchone()
+
+        if result is None:
+            #Couldn't find user
+            await interaction.response.send_message(f"*I couldn't find you in the database*", ephemeral=True)
+        else:
+            # We found the user
+            xp, level = result
+            await interaction.response.send_message(f"*{interaction.message.author.name}#{interaction.message.author.discriminator}'s stats*\nXP: `{xp}xp`\nLevel: `{level}`", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"*An error occured trying to fetch your stats*", ephemeral=True)
 
 
 ######### Admin only commands #########
@@ -554,7 +573,7 @@ async def on_message(message):
     else:
         # Returns true if it contains a banned word
         if await messageCheck(message.content):
-            await logger(4, f"{message.author.name}#{message.author.discriminator} (UID: {message.author.id} sent an offensive message:\n{message.text})")
+            await logger(4, f"{message.author.name}#{message.author.discriminator} (UID: {message.author.id} sent an offensive message:\n{message.content}")
             await message.channel.send(f"{message.author.mention} ! Do not use banned words!")
             await message.delete()
         else:
