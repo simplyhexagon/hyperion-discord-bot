@@ -49,9 +49,9 @@ logo: str = """  _   _                       _
  |_| |_|\__, | .__/ \___|_|  |_|\___/|_| |_|
         |___/|_|                            """
 
-output:str = f"\n\n\nHyperion Discord Bot {BOT_VERSION}, developed by simplyhexagon\n\n{logo}\n\n"
-logging.info(output)
-print(output)
+output:str = f"Hyperion Discord Bot {BOT_VERSION}, developed by simplyhexagon\n\n{logo}\n\n"
+logging.info(f"\n\n\n{output}")
+print(f"\n{output}")
 
 logging.info("Loading...\n")
 print("Loading...\n")
