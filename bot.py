@@ -483,9 +483,9 @@ async def commands(interaction: discord.Interaction):
 async def stats(interaction: discord.Interaction):
     """Get your messaging stats"""
     try:
-        database = dbInit()
+        database = await dbconn()
         c = database.cursor()
-        query = c.execute(f"SELECT xp, userlevel FROM levels WHERE uid = {message.author.id}")
+        query = c.execute(f"SELECT xp, userlevel FROM levels WHERE uid = {interaction.user.id}")
         result = query.fetchone()
 
         if result is None:
@@ -494,9 +494,10 @@ async def stats(interaction: discord.Interaction):
         else:
             # We found the user
             xp, level = result
-            await interaction.response.send_message(f"*{interaction.message.author.name}#{interaction.message.author.discriminator}'s stats*\nXP: `{xp}xp`\nLevel: `{level}`", ephemeral=True)
+            await interaction.response.send_message(f"*{interaction.user.name}#{interaction.user.discriminator}'s stats*\nXP: `{xp}xp`\nLevel: `{level}`", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"*An error occured trying to fetch your stats*", ephemeral=True)
+        await logger(3, f"An error occured when trying to access user stats:\n{e}")
 
 
 ######### Admin only commands #########
