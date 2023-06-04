@@ -28,3 +28,15 @@ Before the 2nd startup, please fill in the contents appropriately
 If you want to use the bot as-is, you will need to add `yt-dlp` and `ffmpeg` to the appropriate folders
 
 Since these are open-source softwares, we cannot include them in this package
+
+### configs/badwords.json
+
+This configuration file will be automatically created, but you will have to fill it out for yourself
+
+### Level system
+
+Each chatter on the server levels up after 100 words sent every time.
+Chat level is calculated based on the number of words they sent in each of their messages, divided by 100
+
+xp = word count (space separated characters, yes, even xnopyt)
+level = xp / 100, rounded to the nearest integer

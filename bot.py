@@ -278,7 +278,7 @@ async def ping(interaction: discord.Interaction):
     await logger(4, f"\"ping\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
     latency = bot.latency * 1000
     latency = round(latency, 0)
-    await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`")
+    await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`", ephemeral=True)
     await logger(1, f"Current ping is {latency}ms")
 
 @bot.tree.command(name="echo")
@@ -554,8 +554,54 @@ async def on_message(message):
     else:
         # Returns true if it contains a banned word
         if await messageCheck(message.content):
+            await logger(4, f"{message.author.name}#{message.author.discriminator} (UID: {message.author.id} sent an offensive message:\n{message.text})")
             await message.channel.send(f"{message.author.mention} ! Do not use banned words!")
             await message.delete()
+        else:
+            # Increase user XP
+            # They shouldn't get XP for swearwords lol
+            try:
+                database = await dbconn()
+                c = database.cursor()
+                result = c.execute(f"SELECT xp, userlevel FROM levels WHERE uid = \"{message.author.id}\"")
+                
+
+                msgwords = message.content.split(' ')
+                msglen = len(msgwords)
+
+                row = result.fetchone()
+
+                if row is None:
+                    # User isn't in database, new chatter
+                    xp = msglen
+                    level = msglen // 100
+
+                    c.execute(f"INSERT INTO levels (xp, userlevel, uid) VALUES ({xp}, {level}, {message.author.id})")
+                    database.commit()
+                    c.close()
+                    database.close()
+                    await message.channel.send(f"{message.author.mention} just started chatting!")
+
+                else:
+                    # User is already in database, increase XP
+                    xp, level = row
+
+                    newxp = xp + msglen
+                    newlevel = newxp // 100
+
+                    # Updating values
+                    c.execute(f"UPDATE levels SET xp = {newxp}, userlevel = {newlevel} WHERE uid = {message.author.id}")
+                    database.commit()
+                    c.close()
+                    database.close()
+
+                    if(newlevel > level):
+                        await message.channel.send(f"{message.author.mention} has levelled up and is now Level {newlevel}!")
+
+            except Exception as e:
+                #
+                await logger(3, f"An error occured while trying to manipulate the database\n{e}")
+
         
 
 async def messageCheck(message):
