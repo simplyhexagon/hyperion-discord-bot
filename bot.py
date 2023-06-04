@@ -20,9 +20,12 @@ import subprocess
 
 import sqlite3
 
+# For moderation
+import re
+
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.2.3"
+BOT_VERSION: str = "0.5"
 
 # Vars
 bot = commands.Bot(command_prefix="$", intents= discord.Intents.all())
@@ -30,28 +33,76 @@ global is_os_windows
 is_os_windows = False
 global database
 
+global badWordsDict
+badWordsDict = []
+
 # Setting up log file
 log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
+
 
 
 #!SECTION Checking if config file exists
 if os.path.exists("./config.json"):
     with open("./config.json") as config:
         configData = json.load(config)
-        dev_token = configData["DEV_TOKEN"]
-        prod_token = configData["PROD_TOKEN"]
         ffmpeg_path = configData["FFMPEG_PATH"]
         ytdl_path = configData["YTDL_PATH"]
+
+        if ffmpeg_path == "" or ytdl_path == "":
+            print("Fields in config.json are invalid, please check again, and restart the bot")
+            exit()
+
 else:
     print("config.json does not exist in the current directory!")
-    configTemplate = {"PROD_TOKEN": "", "DEV_TOKEN": "", "FFMPEG_PATH": "", "YTDL_PATH": ""}
+    configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": ""}
 
     with open("./config.json", "w+") as f:
         json.dump(configTemplate, f)
         print("created config template")
-        print("\nPlease fill in the tokens in your config.json and restart the bot!")
+        print("\nPlease fill in the ffmpeg and yt-dlp path in the config.json file to continue")
         exit()
 
+
+#!SECTION Checking if TOKEN file exists
+if os.path.exists("./token.json"):
+    with open("./token.json") as tokens:
+        tokenData = json.load(tokens)
+        dev_token = tokenData["DEV_TOKEN"]
+        prod_token = tokenData["PROD_TOKEN"]
+    
+    if dev_token == "" or prod_token == "":
+            print("Fields in token.json are invalid, please check again, and restart the bot")
+            exit()
+else:
+    print("File token.json does not exist")
+    configTemplate = {"PROD_TOKEN": "", "DEV_TOKEN": ""}
+
+    with open("./token.json", "w+") as f:
+        json.dump(configTemplate, f)
+        print("Created token config template")
+        print("\nPlease fill in the tokens in your token.json and restart the bot!")
+        exit()
+
+async def badWords():
+    #!SECTION Checking if TOKEN file exists
+    if os.path.exists("./badwords.json"):
+        with open("./badwords.json") as badwords:
+            badWordsData = json.load(badwords)
+            global badWordsDict
+            badWordsDict = badWordsData["badwords"]
+        
+        if not badWordsDict:
+                print("There are no banned words specified.\n Fill in the badwords.json and restart the bot")
+                exit()
+    else:
+        print("File token.json does not exist")
+        configTemplate = {"badwords": ["word1", "word2"]}
+
+        with open("./badwords.json", "w+") as f:
+            json.dump(configTemplate, f)
+            print("Created bad words file template")
+            print("\nPlease fill in the bad words list to continue!")
+            exit()
 
 async def logger(level, message):
     now = datetime.datetime.now()
@@ -122,29 +173,48 @@ async def dbInit():
         else:
             loadDB = open('./initialDB.sql')
 
-        dbstring = loadDB.read()
+        dbstring = loadDB.read().split("--A")
 
         cursor = database.cursor()
-        cursor.execute(dbstring)
+
+        for command in dbstring:
+            cursor.execute(command)
+            database.commit()
 
         cursor.close()
         loadDB.close()
+        await logger(1, "Database initialisation complete")
 
     except sqlite3.Error as e:
         await logger(3, f"Error initialising database\n{e}")
         exit()
 
-    
+async def dbconn():
+    await logger(1, "Attempting database r/w")
+    try:
+        if(is_os_windows == True):
+            database = sqlite3.connect(".\\bot.db")
+        else:
+            database = sqlite3.connect("./bot.db")
+        
+        return database
+    except Exception as e:
+        await logger(3, "An error occured while attempting database r/w")
+
 
 @bot.event
 async def on_ready():
+    await logger(1, "Loading list of banned words")
+    await badWords()
+
+
     global is_os_windows
     if(platform.system() == "Windows"):
         is_os_windows = True
-        await logger(2, "Bot is running on Windows!!!")
+        await logger(2, "Bot running on Windows, using \"\\\" as path separator")
     else:
         is_os_windows = False
-        await logger(2, "Bot is running on *nix")
+        await logger(2, "Bot not running on Windows, using \"/\" as path separator")
     
     if(IS_BOT_DEV):
         await logger(2, "Bot was launched as a test instance")
@@ -426,6 +496,28 @@ async def dm(interaction: discord.Interaction, user: discord.Member, message: st
     
 
 #######################################
+
+
+######### MESSAGE MODERATION #########
+@bot.event
+async def on_message(message):
+#await logger(1, f"Message sent!\nServer: {message.guild.name}\nChannel: {message.channel.name}\nAuthor: {message.author.name}#{message.author.discriminator}\nMessage: {message.content}")
+    if message.author == bot.user:
+        return
+    else:
+        # Returns true if it contains a banned word
+        if await messageCheck(message.content):
+            await message.channel.send(f"{message.author.mention} ! Do not use banned words!")
+        
+
+async def messageCheck(message):
+    pattern = r"\b(" + "|".join(map(re.escape, badWordsDict)) + r")\b"
+    matches = re.findall(pattern, message, re.IGNORECASE)
+    if matches:
+        return True
+    else:
+        return False
+
 
 if(IS_BOT_DEV):
     # Log in as test instance
