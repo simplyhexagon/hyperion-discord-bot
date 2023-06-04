@@ -50,7 +50,7 @@ logo: str = """  _   _                       _
         |___/|_|                            """
 
 output:str = f"Hyperion Discord Bot {BOT_VERSION}, developed by simplyhexagon\n\n{logo}\n\n"
-logging.info(f"\n\n\n{output}")
+logging.info(f"Starting Hyperion...\n\n\n{output}")
 print(f"\n{output}")
 
 logging.info("Loading...\n")
@@ -298,15 +298,14 @@ async def about(interaction: discord.Interaction):
 @bot.tree.command(name="join")
 async def join(interaction: discord.Interaction):
     """Join voice channel"""
-    if interaction.user.voice.channel is not None:
+    if interaction.user.voice is not None:
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"I am now attempting to join this voice channel: {voicechannel.name}")
+        await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`", ephemeral=True)
         try:
             global voiceclient
             voiceclient = await voicechannel.connect(self_deaf=True)
-            await msgchannel.send(f"Successfully joined {voicechannel.name}")
         except Exception as ex:
             await msgchannel.send("An error occured!")
             await logger(3, f"An exception occured: {ex}")
@@ -337,17 +336,15 @@ async def voicetest(interaction: discord.Interaction):
             voicechannel = interaction.user.voice.channel
             msgchannel = interaction.channel
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-            await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`")
+            await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.name}`")
             try:
                 global voiceclient
                 voiceclient = await voicechannel.connect(self_deaf=True)
-                await msgchannel.send(f"Successfully joined `{voicechannel.name}`")
                 
             except Exception as ex:
                 await msgchannel.send("An error occured!")
                 await logger(3, f"An exception occured: {ex}")
 
-            await msgchannel.send(f"Playing test audio file...")
             if is_os_windows:
                 sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
             else:
@@ -440,7 +437,7 @@ async def play(interaction: discord.Interaction, url: str):
                 await msgchannel.send("I am already playing an audio file!")
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-            await msgchannel.send("You are not connected to a voice channel!")
+            await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
     except Exception as ex:
         await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
         await logger(3, f"An exception occured while running the bot\n\t{ex}")
