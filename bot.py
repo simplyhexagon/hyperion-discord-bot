@@ -26,7 +26,7 @@ import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.5-2"
+BOT_VERSION: str = "0.6"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
@@ -412,19 +412,20 @@ async def play(interaction: discord.Interaction, url: str):
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
             try:
                 global voiceclient
-                if not voiceclient.is_connected():
-                    voiceclient = await voicechannel.connect(self_deaf=True)
-                    if(is_os_windows):
-                        pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
-                    else:
-                        pingsourcefile = FFmpegPCMAudio(f"./assets/wait.mp3", executable=ffmpeg_path)
+                voiceclient = await voicechannel.connect(self_deaf=True)
+                if(is_os_windows):
+                    pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
+                else:
+                    pingsourcefile = FFmpegPCMAudio(f"./assets/wait.mp3", executable=ffmpeg_path)
 
-                    voiceclient.play(pingsourcefile)
-                    while voiceclient.is_playing():
-                        await asyncio.sleep(1)
+                voiceclient.play(pingsourcefile)
+                while voiceclient.is_playing():
+                    await asyncio.sleep(1)
 
                 
             except Exception as ex:
+                # This is intentionally left unknown to the user because
+                # this usually occurs when the user calls /play, but they're already connected
                 await logger(3, f"An exception occured: {ex}")
 
             if not voiceclient.is_playing():
@@ -490,18 +491,53 @@ async def play(interaction: discord.Interaction, url: str):
         await logger(3, f"An exception occured while running the bot\n\t{ex}")
                 
 
+@bot.tree.command(name="skip")
+async def skip(interaction: discord.Interaction):
+    """Skips current song"""
+    try:
+        await logger(1, f"Skip command issued")
+        if(len(playQueueFiles) > 0):
+            vclients = bot.voice_clients
+            for vclient in vclients:
+                vchannel: discord.VoiceChannel = vclient.channel
+                if vchannel.name == interaction.user.voice.channel.name:
+                    vclient.stop()
+                    await interaction.response.send_message("Skipped current song", ephemeral=True)
+                    await logger(1, "Song skipped")
+        else:
+            await interaction.response.send_message("No song is playing", ephemeral=True)
+
+    except Exception as ex:
+        await logger(3, f"An exception occured: {ex}")
+        await interaction.response.send_message("An error occured!", ephemeral=True)
+
+
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction):
-    """Stop current music playback"""
+    """Stops current playback and clears queue"""
     try:
-        await logger(1, f"Stopping music playback")
-        vclients = bot.voice_clients
-        for vclient in vclients:
-            vchannel: discord.VoiceChannel = vclient.channel
-            if vchannel.name == interaction.user.voice.channel.name:
-                vclient.stop()
-                await interaction.response.send_message("Playback stopped!", ephemeral=True)
-                await logger(1, "Voice client stopped playback")
+        await logger(1, f"Stop command issued")
+        global playQueueFiles
+        if(len(playQueueFiles) > 0):
+            # Sanitising au_temp
+            for item in playQueueFiles:
+                if(item.endswith('.mp3')):
+                    await logger(1, f"Removing file: {item}")
+                    os.remove(item)
+
+            # Clearing queue
+            playQueueFiles = []
+            playQueueUrls = []
+
+            vclients = bot.voice_clients
+            for vclient in vclients:
+                vchannel: discord.VoiceChannel = vclient.channel
+                if vchannel.name == interaction.user.voice.channel.name:
+                    vclient.stop()
+                    await interaction.response.send_message("Stopped playback", ephemeral=True)
+                    await logger(1, "Stopped playback")
+        else:
+            await interaction.response.send_message("No song is playing", ephemeral=True)
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
