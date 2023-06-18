@@ -17,6 +17,7 @@ import time
 import string
 import random
 import subprocess
+import threading
 
 import sqlite3
 
@@ -208,7 +209,6 @@ async def dbInit():
         exit()
 
 async def dbconn():
-    await logger(1, "Database r/w")
     try:
         if(is_os_windows == True):
             database = sqlite3.connect(".\\bot.db")
@@ -290,7 +290,7 @@ async def echo(interaction: discord.Interaction, echo_content: str):
 @bot.tree.command(name="about")
 async def about(interaction: discord.Interaction):
     """Information about the bot"""
-    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: hexagon#1337\nUse `/commands` for more info!"
+    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: github.com/balika0105\nUse `/commands` for more info!"
     await logger(4, f"\"about\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
     await interaction.response.send_message(f"{response}")
 
@@ -302,7 +302,7 @@ async def join(interaction: discord.Interaction):
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"I am now attempting to join this voice channel: `{voicechannel.name}`", ephemeral=True)
+        await interaction.response.send_message(f"I am now attempting to join this voice channel: {voicechannel.mention}", ephemeral=True)
         try:
             global voiceclient
             voiceclient = await voicechannel.connect(self_deaf=True)
@@ -336,7 +336,7 @@ async def voicetest(interaction: discord.Interaction):
             voicechannel = interaction.user.voice.channel
             msgchannel = interaction.channel
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-            await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.name}`")
+            await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.mention}`")
             try:
                 global voiceclient
                 voiceclient = await voicechannel.connect(self_deaf=True)
@@ -374,29 +374,54 @@ def download_music(url: str):
 
     return outputstring
 
+
+playQueueUrls = []
+playQueueFiles = []
+
+async def queueHandler():
+    await logger(1, "Called queueHandler")
+    while (len(playQueueUrls) > 0):
+        # "Pop" the first item of the URL list, so we can store it and
+        # it gets removed from the list/array/whatever
+        url = playQueueUrls.pop(0)
+        result = download_music(url)
+        outputstring = result
+        sourcepath: str = ""
+
+        if(is_os_windows):
+            sourcepath = f".\\au_temp\\{outputstring}.mp3"
+        else:
+            sourcepath = f"./au_temp/{outputstring}.mp3"
+
+        playQueueFiles.append(sourcepath)
+
+def queueHandlerCall():
+    # We need to do it this way otherwise, it ain't async
+    asyncio.run(queueHandler())
+
+
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube video URL")
 async def play(interaction: discord.Interaction, url: str):
     """Music playback from YouTube (only available with URL, no search)"""
+    msgchannel = interaction.channel
     try:
-        if interaction.user.voice.channel is not None:
+        if interaction.user.voice is not None:
             voicechannel = interaction.user.voice.channel
-            msgchannel = interaction.channel
-
-            await interaction.response.send_message(f"Starting playback of {url} for `#{voicechannel.name}`", ephemeral=True)
-
+            
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel to play media")
             try:
                 global voiceclient
-                voiceclient = await voicechannel.connect(self_deaf=True)
-                if(is_os_windows):
-                    pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
-                else:
-                    pingsourcefile = FFmpegPCMAudio(f"./assets/wait.mp3", executable=ffmpeg_path)
+                if not voiceclient.is_connected():
+                    voiceclient = await voicechannel.connect(self_deaf=True)
+                    if(is_os_windows):
+                        pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
+                    else:
+                        pingsourcefile = FFmpegPCMAudio(f"./assets/wait.mp3", executable=ffmpeg_path)
 
-                voiceclient.play(pingsourcefile)
-                while voiceclient.is_playing():
-                    await asyncio.sleep(1)
+                    voiceclient.play(pingsourcefile)
+                    while voiceclient.is_playing():
+                        await asyncio.sleep(1)
 
                 
             except Exception as ex:
@@ -404,7 +429,7 @@ async def play(interaction: discord.Interaction, url: str):
 
             if not voiceclient.is_playing():
                 try:
-                    
+                    await interaction.response.send_message(f"Starting playback of {url} for {voicechannel.mention}", ephemeral=True)
                     await logger(1, "Start audio download")
                     result = await bot.loop.run_in_executor(None, download_music, url)
                     await logger(1, "Stop audio download")
@@ -429,17 +454,39 @@ async def play(interaction: discord.Interaction, url: str):
                     # Auto-sanitising the music downloads folder
                     os.remove(sourcepath)
 
+                    # Playing the queue if exists
+                    while (len(playQueueFiles) > 0):
+                        sourcepath = playQueueFiles.pop(0)
+                        sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
+                        await logger(1, f"Starting playback from queue in voice channel {voiceclient.channel.name}")
+                        player = voiceclient.play(sourcefile)
+
+                        while voiceclient.is_playing():
+                            await asyncio.sleep(1)
+
+                        os.remove(sourcepath)
+
+                    voiceclient.stop()
+
+
                 except Exception as ex:
                     await msgchannel.send("An error occured!")
                     await logger(3, f"An exception occured: {ex}")
 
             elif voiceclient.is_playing():
-                await msgchannel.send("I am already playing an audio file!")
+                # Adding link to queued URLs
+                await interaction.response.send_message(f"Added {url} to queue", ephemeral=True)
+                playQueueUrls.append(url)
+
+                queueThread = threading.Thread(target=queueHandlerCall)
+                if not queueThread.is_alive():
+                    queueThread.start()
+
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
             await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
     except Exception as ex:
-        await msgchannel.send(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
+        await interaction.response.send_message("An error occured while processing your request!", ephemeral=True)
         await logger(3, f"An exception occured while running the bot\n\t{ex}")
                 
 
@@ -465,17 +512,12 @@ async def stop(interaction: discord.Interaction):
 async def commands(interaction: discord.Interaction):
     """List of commands"""
     await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called `/commands`")
-    response: str = f'''
-    `/commands`: List of commands
-    `/ping`: Test bot availability
-    `/echo <message>`: Echo the message back
-    `/about`: Information about the bot
-    `/join`: Join your voice channel
-    `/leave`: Leave your voice channel
-    `/voicetest`: Test voice capabilities
-    `/play <YouTube URL>`: Audio playback from YouTube
-    `/stop`: Stop playback
-    '''
+    response: str = ""
+    cmdfetch = await bot.tree.fetch_commands()
+    for cmd in cmdfetch:
+        if not "ADMIN ONLY" in cmd.description:
+            response = response + "`/" + cmd.name + "`: " + cmd.description + "\n"
+
     await interaction.response.send_message(f"Available commands: \n{response}", ephemeral=True)
 
 

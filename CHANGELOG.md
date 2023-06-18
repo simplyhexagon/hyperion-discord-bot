@@ -1,5 +1,10 @@
 # Hyperion Discord Bot - Changelog
 
+2023-06-18:
+- Minor code fixups
+- Playback queue implementation
+- Dynamic list of available commands
+
 2023-06-04:
 - Introduced CHANGELOG
 - Introduced database system
