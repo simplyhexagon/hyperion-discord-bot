@@ -511,7 +511,7 @@ async def skip(interaction: discord.Interaction):
     """Skips current song"""
     try:
         await logger(1, f"Skip command issued")
-        if(len(playQueueFiles) > 1):
+        if(len(playQueueFiles) > 0):
             vclients = bot.voice_clients
             for vclient in vclients:
                 vchannel: discord.VoiceChannel = vclient.channel
