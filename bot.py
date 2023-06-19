@@ -1,36 +1,45 @@
-#!/bin/python
+#!/usr/bin/python
 # Imports
+
+# Discord stuff
 import discord
+
+# Discord slash commands
 from discord import app_commands
 from discord.ext import commands
+
+# Discord playback to voicechat
 from discord import FFmpegPCMAudio
+
+# Asynchronous operations
 import asyncio
 
-import logging
-import datetime
-import nacl
+import logging # Proper logging
+import datetime # For writing datetime to log
+import nacl # Discord voicechat dependency
 
-import json
-import os
-import platform
+import json # Configuration file I/O
+import os # Creating and removing files, checking if they exist
+import platform # Checking if the bot is running on windows
 import time
-import string
-import random
-import subprocess
-import threading
+import string # String formatting
+import random # Used in download function to create random filename
+import subprocess # Used in /play for first download
+import threading # So far it's only used for queue download
 
-import sqlite3
+import sqlite3 # Database
 
 # For moderation
 import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.6"
+BOT_VERSION: str = "0.6.2"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
 BADWORDS_PATH: str = "./configs/badwords.json"
+admin_roles = []
 
 # Vars
 global is_os_windows
@@ -66,14 +75,15 @@ if os.path.exists(CONFIG_PATH):
         configData = json.load(config)
         ffmpeg_path = configData["FFMPEG_PATH"]
         ytdl_path = configData["YTDL_PATH"]
+        admin_roles = configData["ADMIN_ROLES"]
 
-        if ffmpeg_path == "" or ytdl_path == "":
+        if ffmpeg_path == "" or ytdl_path == "" or admin_roles == []:
             print("Fields in config.json are invalid, please check again, and restart the bot")
             exit()
 
 else:
     print("config.json does not exist in the current directory!")
-    configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": ""}
+    configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": "", "ADMIN_ROLES": []}
 
     with open(CONFIG_PATH, "w+") as f:
         json.dump(configTemplate, f)
@@ -275,7 +285,12 @@ async def on_ready():
 @bot.tree.command(name="ping")
 async def ping(interaction: discord.Interaction):
     """Testing bot availability"""
-    await logger(4, f"\"ping\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
+
+    formattedUser = interaction.user.name
+    if not interaction.user.discriminator == "0":
+        formattedUser = formattedUser + "#" + interaction.user.discriminator
+    await logger(4, f"\"ping\" command was called by {formattedUser}")
+
     latency = bot.latency * 1000
     latency = round(latency, 0)
     await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`", ephemeral=True)
@@ -290,7 +305,7 @@ async def echo(interaction: discord.Interaction, echo_content: str):
 @bot.tree.command(name="about")
 async def about(interaction: discord.Interaction):
     """Information about the bot"""
-    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: github.com/balika0105\nUse `/commands` for more info!"
+    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: simplyhexagon\nUse `/commands` for more info!"
     await logger(4, f"\"about\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
     await interaction.response.send_message(f"{response}")
 
@@ -496,7 +511,7 @@ async def skip(interaction: discord.Interaction):
     """Skips current song"""
     try:
         await logger(1, f"Skip command issued")
-        if(len(playQueueFiles) > 0):
+        if(len(playQueueFiles) > 1):
             vclients = bot.voice_clients
             for vclient in vclients:
                 vchannel: discord.VoiceChannel = vclient.channel
@@ -525,19 +540,20 @@ async def stop(interaction: discord.Interaction):
                     await logger(1, f"Removing file: {item}")
                     os.remove(item)
 
-            # Clearing queue
-            playQueueFiles = []
-            playQueueUrls = []
-
-            vclients = bot.voice_clients
-            for vclient in vclients:
-                vchannel: discord.VoiceChannel = vclient.channel
-                if vchannel.name == interaction.user.voice.channel.name:
-                    vclient.stop()
-                    await interaction.response.send_message("Stopped playback", ephemeral=True)
-                    await logger(1, "Stopped playback")
         else:
             await interaction.response.send_message("No song is playing", ephemeral=True)
+
+        # Clearing queue
+        playQueueFiles = []
+        playQueueUrls = []
+
+        vclients = bot.voice_clients
+        for vclient in vclients:
+            vchannel: discord.VoiceChannel = vclient.channel
+            if vchannel.name == interaction.user.voice.channel.name:
+                vclient.stop()
+                await interaction.response.send_message("Stopped playback", ephemeral=True)
+                await logger(1, "Stopped playback")
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
@@ -580,27 +596,26 @@ async def stats(interaction: discord.Interaction):
 
 ######### Admin only commands #########
 
-# Use the role names of your own server here
-adminRoleNames = ["Captain", "Command Crew"]
-
 # This function is only for checking if the target is an admin
 async def isUserAdmin(user: discord.Member):
+    userRoles = []
+    for urole in user.roles:
+        userRoles.append(urole.id)
+
     userIsAdmin: bool = False
-    for item in adminRoleNames:
-        role = discord.utils.find(lambda r: r.name == item, user.guild.roles)
-        if role in user.roles:
-            userIsAdmin = True
+    userIsAdmin = any(role in admin_roles for role in userRoles)
 
     return userIsAdmin
 # Admin check END
 
 # This function is only for checking if the command's user is an admin
 async def isUserAdmin(user: discord.Interaction.user):
+    userRoles = []
+    for urole in user.roles:
+        userRoles.append(urole.id)
+
     userIsAdmin: bool = False
-    for item in adminRoleNames:
-        role = discord.utils.find(lambda r: r.name == item, user.guild.roles)
-        if role in user.roles:
-            userIsAdmin = True
+    userIsAdmin = any(role in admin_roles for role in userRoles)
 
     return userIsAdmin
 # Admin check END

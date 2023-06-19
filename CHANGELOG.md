@@ -1,5 +1,10 @@
 # Hyperion Discord Bot - Changelog
 
+2023-06-19
+- Minor code fixes
+- Version number increment
+- Admin roles are moved to config.json, see README
+
 2023-06-18:
 - Minor code fixups
 - Playback queue implementation

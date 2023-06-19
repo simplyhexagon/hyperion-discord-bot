@@ -40,3 +40,11 @@ Chat level is calculated based on the number of words they sent in each of their
 
 xp = word count (space separated characters, yes, even xnopyt)
 level = xp / 100, rounded to the nearest integer
+
+### configs/config.json
+
+FFMPEG_PATH: string - Path to ffmpeg executable (e.g. "C:\ffmpeg\bin\ffmpeg.exe" or "/usr/bin/ffmpeg")
+
+YTDL_PATH: string - Path to yt-dlp executable (e.g. "C:\yt-dlp\bin\yt-dlp.exe" or "/usr/bin/yt-dlp")
+
+ADMIN_ROLES: array[int] - List of roles that are admin on the server (USE NUMBERS)
