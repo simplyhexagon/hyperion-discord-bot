@@ -1,5 +1,9 @@
 # Hyperion Discord Bot - Changelog
 
+2023-06-20
+- Update README
+- Removed `ffmpeg` and `yt-dlp` directories, as the bot uses those software differently now
+
 2023-06-19
 - Minor code fixes
 - Version number increment
