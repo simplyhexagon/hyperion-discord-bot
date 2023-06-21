@@ -34,7 +34,7 @@ import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.6.2"
+BOT_VERSION: str = "0.6.3"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
@@ -176,6 +176,7 @@ async def audio_delete():
             os.remove(removefile)
 
 async def update_ytdlp():
+    responsecode: int = 0
     if(is_os_windows):
         command = f"{ytdl_path} -U"
 
@@ -183,9 +184,13 @@ async def update_ytdlp():
         command = f"{ytdl_path} -U"
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
-    while (process.poll() != 0):
+    while (process.poll() != 0 or process.poll() != 100):
+        responsecode = process.poll()
         time.sleep(1)
         await logger(1, "Waiting for yt-dlp to update...")
+        if responsecode == 100 or responsecode == None:
+            await logger(2, "Update for yt-dlp was cancelled due to an error. This can happen if it was installed with a package manager")
+            return
 
 async def dbInit():
     await logger(1, "Setting up database connection")
@@ -276,7 +281,7 @@ async def on_ready():
         synced = await bot.tree.sync()
         await logger(1, f"Synced {len(synced)} command(s)")
     except Exception as e:
-        await logger(3, f"Exception occured! {e}")
+        await logger(3, f"Exception occured!\n\t\t{e}")
 
     await logger(1, "Discord bot ready")
 
@@ -293,21 +298,23 @@ async def ping(interaction: discord.Interaction):
 
     latency = bot.latency * 1000
     latency = round(latency, 0)
-    await interaction.response.send_message(f"*Pong!*\n`Current latency is {latency} ms`", ephemeral=True)
+    embed = discord.Embed(title="*Pong!*", description=f"Current latency is `{latency} ms`")
+
+    await interaction.response.send_message(embed=embed, ephemeral=True)
     await logger(1, f"Current ping is {latency}ms")
 
-@bot.tree.command(name="echo")
-@app_commands.describe(echo_content = "Content after the \"/echo\" command that gets echoed back")
-async def echo(interaction: discord.Interaction, echo_content: str):
-    """Echo the content"""
-    await interaction.response.send_message(f"`{echo_content}`")
+# @bot.tree.command(name="echo")
+# @app_commands.describe(echo_content = "Content after the \"/echo\" command that gets echoed back")
+# async def echo(interaction: discord.Interaction, echo_content: str):
+#     """Echo the content"""
+#     await interaction.response.send_message(f"`{echo_content}`")
 
 @bot.tree.command(name="about")
 async def about(interaction: discord.Interaction):
     """Information about the bot"""
-    response: str = f"*Hyperion {BOT_VERSION}*\nCreated by: simplyhexagon\nUse `/commands` for more info!"
+    embed = discord.Embed(title="About the bot", description=f"Hyperion Bot {BOT_VERSION}\nCreated by: @simplyhexagon\nUse `/commands` to list available commands")
     await logger(4, f"\"about\" command was called by {interaction.user.name}#{interaction.user.discriminator}")
-    await interaction.response.send_message(f"{response}")
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="join")
@@ -317,16 +324,23 @@ async def join(interaction: discord.Interaction):
         voicechannel = interaction.user.voice.channel
         msgchannel = interaction.channel
         await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-        await interaction.response.send_message(f"I am now attempting to join this voice channel: {voicechannel.mention}", ephemeral=True)
+        embed = discord.Embed(title="Voice Chat Interaction", description=f"I am now attempting to join this voice channel: {voicechannel.mention}")
+        attemptMessage = await interaction.response.send_message(embed=embed, ephemeral=True)
         try:
             global voiceclient
             voiceclient = await voicechannel.connect(self_deaf=True)
+
+            embed = discord.Embed(title="Voice Chat Interaction", description=f"Connected to voice channel: {voicechannel.mention}")
+            await interaction.edit_original_response(embed=embed)
+
         except Exception as ex:
             await msgchannel.send("An error occured!")
             await logger(3, f"An exception occured: {ex}")
     else:
         await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-        await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
+
+        embed = discord.Embed(title="Voice Chat Interaction", description=f"You are not connected to a voice channel!", color=discord.Color.red())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="leave")
 async def leave(interaction: discord.Interaction):
@@ -336,12 +350,14 @@ async def leave(interaction: discord.Interaction):
         vchannel: discord.VoiceChannel = voiceclient.channel
         if vchannel.name == interaction.user.voice.channel.name:
             await voiceclient.disconnect()
-            await interaction.response.send_message("Successfully left voice channel!", ephemeral=True)
+            embed = discord.Embed(title="Voice Chat Interaction", description="Successfully left voice channel!")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
             await logger(1, "Voice client disconnected")
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
-        await interaction.response.send_message("An error occured!", ephemeral=True)
+        embed = discord.Embed(title="Voice Chat Interaction", description=f"An error occured", color=discord.Color.red())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 @bot.tree.command(name="voicetest")
 async def voicetest(interaction: discord.Interaction):
@@ -568,9 +584,10 @@ async def commands(interaction: discord.Interaction):
     cmdfetch = await bot.tree.fetch_commands()
     for cmd in cmdfetch:
         if not "ADMIN ONLY" in cmd.description:
-            response = response + "`/" + cmd.name + "`: " + cmd.description + "\n"
+            response = response + "- `/" + cmd.name + "`: " + cmd.description + "\n"
 
-    await interaction.response.send_message(f"Available commands: \n{response}", ephemeral=True)
+    embed = discord.Embed(title="Available commands", description=response, color=discord.Color.dark_green())
+    await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="stats")
@@ -582,13 +599,18 @@ async def stats(interaction: discord.Interaction):
         query = c.execute(f"SELECT xp, userlevel FROM levels WHERE uid = {interaction.user.id}")
         result = query.fetchone()
 
+        replyContent:str = ""
+
         if result is None:
             #Couldn't find user
-            await interaction.response.send_message(f"*I couldn't find you in the database*", ephemeral=True)
+            replyContent = "I couldn't find you in the database"
         else:
             # We found the user
             xp, level = result
-            await interaction.response.send_message(f"*{interaction.user.name}#{interaction.user.discriminator}'s stats*\nXP: `{xp}xp`\nLevel: `{level}`", ephemeral=True)
+            replyContent = f"*{interaction.user.name}#{interaction.user.discriminator}'s stats*\nLevel: `{level}`\nXP: `{xp}xp`"
+
+        embed = discord.Embed(title="Messaging stats", description=replyContent)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(f"*An error occured trying to fetch your stats*", ephemeral=True)
         await logger(3, f"An error occured when trying to access user stats:\n{e}")
@@ -635,7 +657,9 @@ async def dm(interaction: discord.Interaction, user: discord.Member, message: st
         else:
             await interaction.response.send_message(f"Failed to deliver message!", ephemeral=True)
     else:
-        await interaction.response.send_message(f"You don't have the rights to perform this action", ephemeral=True)
+        await logger(2, f"User {interaction.user.name}#{interaction.user.discriminator} wanted to send a DM to a user, but doesn't have the rights")
+        embed = discord.Embed(title="Sending a DM", description="You don't have the rights to perform this action!", color=discord.Color.red())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
     
 
 @bot.tree.command(name="sanitiselog")
@@ -649,11 +673,14 @@ async def sanitiselog(interaction: discord.Interaction):
         try:
             open('bot.log', 'w').close()
             await logger(1, f"Log file has been sanitised by user {interaction.user.name}#{interaction.user.discriminator}, started new log file")
-            await interaction.response.send_message(f"Log file flush OK, started new log file", ephemeral=True)
+            embed = discord.Embed(title="Log sanitisation", description="Cleared log file")
+            await interaction.response.send_message(embed=embed, ephemeral=True)
         except Exception as e:
             print(f"FAILED TO REMOVE LOG FILE\n{e}")
     else:
-        await interaction.response.send_message(f"You don't have the rights to perform this action!", ephemeral=True)
+        await logger(2, f"User {interaction.user.name}#{interaction.user.discriminator} wanted to sanitise the logs, but doesn't have the appropriate rights")
+        embed = discord.Embed(title="Log sanitisation", description="You don't have the rights to perform this action!", color=discord.Color.red())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 #######################################
 
@@ -661,8 +688,14 @@ async def sanitiselog(interaction: discord.Interaction):
 ######### MESSAGE MODERATION #########
 @bot.event
 async def on_message(message):
-#await logger(1, f"Message sent!\nServer: {message.guild.name}\nChannel: {message.channel.name}\nAuthor: {message.author.name}#{message.author.discriminator}\nMessage: {message.content}")
+
+    # Ignore message sent by bot
     if message.author == bot.user:
+        return
+    # Ignore messages from DMs
+    if message.guild is None:
+        await logger(2, message.author.name + "#" + message.author.discriminator +" sent a DM to the bot, but we're not replying")
+        await logger(4, "Message sent by user: " + message.content)
         return
     else:
         # Returns true if it contains a banned word

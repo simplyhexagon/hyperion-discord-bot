@@ -1,0 +1,12 @@
+[Unit]
+Description=Hyperion Bot
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /path/to/hyperion/bot.py
+WorkingDirectory=/path/to/hyperion
+Restart=always
+User=your_username
+
+[Install]
+WantedBy=multi-user.target
