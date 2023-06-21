@@ -359,34 +359,34 @@ async def leave(interaction: discord.Interaction):
         embed = discord.Embed(title="Voice Chat Interaction", description=f"An error occured", color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-@bot.tree.command(name="voicetest")
-async def voicetest(interaction: discord.Interaction):
-    """For testing voice capabilities"""
-    try:
-        if interaction.user.voice.channel is not None:
-            voicechannel = interaction.user.voice.channel
-            msgchannel = interaction.channel
-            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-            await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.mention}`")
-            try:
-                global voiceclient
-                voiceclient = await voicechannel.connect(self_deaf=True)
+# @bot.tree.command(name="voicetest")
+# async def voicetest(interaction: discord.Interaction):
+#     """For testing voice capabilities"""
+#     try:
+#         if interaction.user.voice.channel is not None:
+#             voicechannel = interaction.user.voice.channel
+#             msgchannel = interaction.channel
+#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
+#             await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.mention}`")
+#             try:
+#                 global voiceclient
+#                 voiceclient = await voicechannel.connect(self_deaf=True)
                 
-            except Exception as ex:
-                await msgchannel.send("An error occured!")
-                await logger(3, f"An exception occured: {ex}")
+#             except Exception as ex:
+#                 await msgchannel.send("An error occured!")
+#                 await logger(3, f"An exception occured: {ex}")
 
-            if is_os_windows:
-                sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
-            else:
-                sourcefile = FFmpegPCMAudio("./assets/bot_test_voice.mp3", executable=ffmpeg_path)
-            player = voiceclient.play(sourcefile)
-        else:
-            await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-            await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
-    except Exception as ex:
-        await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
-        await logger(3, f"An exception occured while running the bot\n\t{ex}")
+#             if is_os_windows:
+#                 sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
+#             else:
+#                 sourcefile = FFmpegPCMAudio("./assets/bot_test_voice.mp3", executable=ffmpeg_path)
+#             player = voiceclient.play(sourcefile)
+#         else:
+#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
+#             await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
+#     except Exception as ex:
+#         await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
+#         await logger(3, f"An exception occured while running the bot\n\t{ex}")
 
 
 def download_music(url: str):
@@ -461,7 +461,8 @@ async def play(interaction: discord.Interaction, url: str):
 
             if not voiceclient.is_playing():
                 try:
-                    await interaction.response.send_message(f"Starting playback of {url} for {voicechannel.mention}", ephemeral=True)
+                    embed = discord.Embed(title="Music Playback", description=f"Starting playback of {url} in {voicechannel.mention} ...")
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
                     await logger(1, "Start audio download")
                     result = await bot.loop.run_in_executor(None, download_music, url)
                     await logger(1, "Stop audio download")
@@ -478,6 +479,8 @@ async def play(interaction: discord.Interaction, url: str):
 
                     sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
                     await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
+                    embed = discord.Embed(title="Music Playback", description=f"Now playing {url} in {voicechannel.mention} ...")
+                    await interaction.edit_original_response(embed=embed)
                     player = voiceclient.play(sourcefile)
 
                     while voiceclient.is_playing():
@@ -507,7 +510,8 @@ async def play(interaction: discord.Interaction, url: str):
 
             elif voiceclient.is_playing():
                 # Adding link to queued URLs
-                await interaction.response.send_message(f"Added {url} to queue", ephemeral=True)
+                embed = discord.Embed(title="Music Playback", description=f"Added {url} to queue")
+                await interaction.response.send_message(embed=embed, ephemeral=True)
                 playQueueUrls.append(url)
 
                 queueThread = threading.Thread(target=queueHandlerCall)
@@ -516,7 +520,8 @@ async def play(interaction: discord.Interaction, url: str):
 
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-            await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
+            embed = discord.Embed(title="Music Playback", description="You are not connected to a voice channel!", color=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
     except Exception as ex:
         await interaction.response.send_message("An error occured while processing your request!", ephemeral=True)
         await logger(3, f"An exception occured while running the bot\n\t{ex}")

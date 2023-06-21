@@ -42,7 +42,7 @@ Chat level is calculated based on the number of words they sent in each of their
 - `xp` = word count (space separated characters, yes, even the mighty *xnopyt*)
 - `level` = `xp` / 100, rounded to the nearest integer
 
-### `configs/config.json`
+### configs/config.json
 
 FFMPEG_PATH: string - Path to ffmpeg executable (e.g. `C:\ffmpeg\bin\ffmpeg.exe` or `/usr/bin/ffmpeg`)
 
@@ -50,7 +50,7 @@ YTDL_PATH: string - Path to yt-dlp executable (e.g. `C:\yt-dlp\bin\yt-dlp.exe` o
 
 ADMIN_ROLES: array[int] - List of roles that are admin on the server (USE NUMBERS)
 
-### `hyperion-bot.service.template`
+### hyperion-bot.service.template
 
 This is a template file for a `systemd` service to automatically start the bot after a reboot.
 
@@ -59,7 +59,7 @@ then run `# systemctl enable --now hyperion-bot`
 
 To see the logs, use `# systemctl status hyperion-bot`
 
-### `assets/initialDB.sql`
+### assets/initialDB.sql
 
 This is the bot's SQL script to build its database from
 
