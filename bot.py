@@ -359,49 +359,30 @@ async def leave(interaction: discord.Interaction):
         embed = discord.Embed(title="Voice Chat Interaction", description=f"An error occured", color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# @bot.tree.command(name="voicetest")
-# async def voicetest(interaction: discord.Interaction):
-#     """For testing voice capabilities"""
-#     try:
-#         if interaction.user.voice.channel is not None:
-#             voicechannel = interaction.user.voice.channel
-#             msgchannel = interaction.channel
-#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-#             await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.mention}`")
-#             try:
-#                 global voiceclient
-#                 voiceclient = await voicechannel.connect(self_deaf=True)
-                
-#             except Exception as ex:
-#                 await msgchannel.send("An error occured!")
-#                 await logger(3, f"An exception occured: {ex}")
 
-#             if is_os_windows:
-#                 sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
-#             else:
-#                 sourcefile = FFmpegPCMAudio("./assets/bot_test_voice.mp3", executable=ffmpeg_path)
-#             player = voiceclient.play(sourcefile)
-#         else:
-#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-#             await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
-#     except Exception as ex:
-#         await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
-#         await logger(3, f"An exception occured while running the bot\n\t{ex}")
-
+def ytURLParse(url:str):
+    """Returns video ID"""
+    parsed_url = urlparse(url)
+    query_params = parse_qs(parsed_url.query)
+    video_id = query_params.get('v')
+    return video_id[0]
 
 def download_music(url: str):
     # Generating a random string for destination
-    letters = string.ascii_lowercase
-    outputstring = ''.join(random.choice(letters) for i in range(10))
+    outputstring = ytURLParse(url)
+    filepath:str = ""
 
     if(is_os_windows):
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f".\\au_temp\\{outputstring}"]
-        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \".\\au_temp\\{outputstring}\""
+        filepath = f".\\au_temp\\{outputstring}"
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
 
     else:
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f"./au_temp/{outputstring}"]
-        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \"./au_temp/{outputstring}\""      
-    result = subprocess.run(command)
+        filepath = f"./au_temp/{outputstring}"
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
+
+    # We'll only download the file if it doesn't exist
+    if not os.path.exists(filepath):
+        result = subprocess.run(command)
 
     return outputstring
 
@@ -430,6 +411,16 @@ def queueHandlerCall():
     # We need to do it this way otherwise, it ain't async
     asyncio.run(queueHandler())
 
+async def start_leave_timer():
+    await asyncio.sleep(120)  # Wait for 120 seconds (2 minutes)
+    await leave_if_idle()
+
+async def leave_if_idle():
+    global voiceclient
+    if voiceclient is not None and not voiceclient.is_playing():
+        await voiceclient.disconnect()
+        voiceclient = None
+        await logger(1, "Left voice channel due to inactivity")
 
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube video URL")
@@ -444,6 +435,7 @@ async def play(interaction: discord.Interaction, url: str):
             try:
                 global voiceclient
                 voiceclient = await voicechannel.connect(self_deaf=True)
+                embed = discord.Embed(title="Music Playback", description=f"Starting playback of {url} in {voicechannel.mention} ...")
                 if(is_os_windows):
                     pingsourcefile = FFmpegPCMAudio(f".\\assets\\wait.mp3", executable=ffmpeg_path)
                 else:
@@ -461,7 +453,7 @@ async def play(interaction: discord.Interaction, url: str):
 
             if not voiceclient.is_playing():
                 try:
-                    embed = discord.Embed(title="Music Playback", description=f"Starting playback of {url} in {voicechannel.mention} ...")
+                    
                     await interaction.response.send_message(embed=embed, ephemeral=True)
                     await logger(1, "Start audio download")
                     result = await bot.loop.run_in_executor(None, download_music, url)
@@ -479,8 +471,19 @@ async def play(interaction: discord.Interaction, url: str):
 
                     sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
                     await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
-                    embed = discord.Embed(title="Music Playback", description=f"Now playing {url} in {voicechannel.mention} ...")
-                    await interaction.edit_original_response(embed=embed)
+                    embed = discord.Embed(title="Music Playback", description=f"Now playing audio in {voicechannel.mention} ...", color=discord.Color.dark_green())
+                    embed.add_field(name="Video", value=f"[Link]({url})")
+
+                    # Parsing YT URL so we can extract the video ID
+                    video_id = ytURLParse(url)
+
+                    thumbnail_embed = discord.Embed(color=discord.Color.dark_green())
+                    thumbnail_url: str = f"https://img.youtube.com/vi/{video_id}/maxresdefault.jpg"
+                    await logger(1, "Thumbnail URL: " + thumbnail_url)
+
+                    thumbnail_embed.set_image(url=thumbnail_url)
+
+                    await interaction.edit_original_response(embeds=[embed, thumbnail_embed])
                     player = voiceclient.play(sourcefile)
 
                     while voiceclient.is_playing():
@@ -503,6 +506,8 @@ async def play(interaction: discord.Interaction, url: str):
 
                     voiceclient.stop()
 
+                    # Start the auto-leave timer
+                    await start_leave_timer()
 
                 except Exception as ex:
                     await msgchannel.send("An error occured!")

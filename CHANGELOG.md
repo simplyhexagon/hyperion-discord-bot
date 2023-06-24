@@ -1,5 +1,9 @@
 # Hyperion Discord Bot - Changelog
 
+2023-06-24
+- Wanted to implement pytube, but it is apparently broken, so it wasn't used
+- Attempt to implement an automatic leave if bot is idle for 2 minutes
+
 2023-06-21
 - Updated `README.md` to include more info
 - Added `systemd` service template
