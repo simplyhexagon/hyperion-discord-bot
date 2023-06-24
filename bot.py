@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # Imports
 
 # Discord stuff
@@ -26,6 +26,9 @@ import string # String formatting
 import random # Used in download function to create random filename
 import subprocess # Used in /play for first download
 import threading # So far it's only used for queue download
+
+
+from urllib.parse import urlparse, parse_qs # Parse youtube URL
 
 import sqlite3 # Database
 
