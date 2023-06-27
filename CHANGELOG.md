@@ -1,5 +1,15 @@
 # Hyperion Discord Bot - Changelog
 
+2023-06-27
+- Removed remainders of pytube implementation
+- The bot now downloads audios named as the YouTube video ID, instead of a randomly generated name
+- Caching added for media files, so they don't get downloaded again if unnecessary
+- Implemented auto-leave when idle
+
+2023-06-24
+- Wanted to implement pytube, but it is apparently broken, so it wasn't used
+- Attempt to implement an automatic leave if bot is idle for 2 minutes
+
 2023-06-21
 - Updated `README.md` to include more info
 - Added `systemd` service template

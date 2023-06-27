@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 # Imports
 
 # Discord stuff
@@ -27,6 +27,9 @@ import random # Used in download function to create random filename
 import subprocess # Used in /play for first download
 import threading # So far it's only used for queue download
 
+
+from urllib.parse import urlparse, parse_qs # Parse youtube URL
+
 import sqlite3 # Database
 
 # For moderation
@@ -34,7 +37,7 @@ import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.6.3"
+BOT_VERSION: str = "0.7"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
@@ -83,7 +86,7 @@ if os.path.exists(CONFIG_PATH):
 
 else:
     print("config.json does not exist in the current directory!")
-    configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": "", "ADMIN_ROLES": []}
+    configTemplate = {"FFMPEG_PATH": "", "YTDL_PATH": "", "ADMIN_ROLES": [12345678987654321]}
 
     with open(CONFIG_PATH, "w+") as f:
         json.dump(configTemplate, f)
@@ -332,6 +335,7 @@ async def join(interaction: discord.Interaction):
 
             embed = discord.Embed(title="Voice Chat Interaction", description=f"Connected to voice channel: {voicechannel.mention}")
             await interaction.edit_original_response(embed=embed)
+            start_leave_timer()
 
         except Exception as ex:
             await msgchannel.send("An error occured!")
@@ -359,49 +363,31 @@ async def leave(interaction: discord.Interaction):
         embed = discord.Embed(title="Voice Chat Interaction", description=f"An error occured", color=discord.Color.red())
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
-# @bot.tree.command(name="voicetest")
-# async def voicetest(interaction: discord.Interaction):
-#     """For testing voice capabilities"""
-#     try:
-#         if interaction.user.voice.channel is not None:
-#             voicechannel = interaction.user.voice.channel
-#             msgchannel = interaction.channel
-#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} called the bot into \"{voicechannel.name}\" voice channel")
-#             await interaction.response.send_message(f"Starting voice test in voice channel: `{voicechannel.mention}`")
-#             try:
-#                 global voiceclient
-#                 voiceclient = await voicechannel.connect(self_deaf=True)
-                
-#             except Exception as ex:
-#                 await msgchannel.send("An error occured!")
-#                 await logger(3, f"An exception occured: {ex}")
 
-#             if is_os_windows:
-#                 sourcefile = FFmpegPCMAudio(".\\assets\\bot_test_voice.mp3", executable=ffmpeg_path)
-#             else:
-#                 sourcefile = FFmpegPCMAudio("./assets/bot_test_voice.mp3", executable=ffmpeg_path)
-#             player = voiceclient.play(sourcefile)
-#         else:
-#             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
-#             await interaction.response.send_message("You are not connected to a voice channel!", ephemeral=True)
-#     except Exception as ex:
-#         await interaction.response.send_message(f"An error occured! Most likely you're not in a voice channel!", ephemeral=True)
-#         await logger(3, f"An exception occured while running the bot\n\t{ex}")
-
+def ytURLParse(url:str):
+    """Returns video ID"""
+    parsed_url = urlparse(url)
+    query_params = parse_qs(parsed_url.query)
+    video_id = query_params.get('v')
+    return video_id[0]
 
 def download_music(url: str):
-    # Generating a random string for destination
-    letters = string.ascii_lowercase
-    outputstring = ''.join(random.choice(letters) for i in range(10))
+    # Using the YouTube video ID to download the file, caching
+    outputstring = ytURLParse(url)
+    filepath:str = ""
 
     if(is_os_windows):
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f".\\au_temp\\{outputstring}"]
-        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \".\\au_temp\\{outputstring}\""
+        filepath = f".\\au_temp\\{outputstring}"
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
 
     else:
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", f"./au_temp/{outputstring}"]
-        #command = f"{ytdl_path} {url} -f 251 -x --audio-format mp3 --output \"./au_temp/{outputstring}\""      
-    result = subprocess.run(command)
+        filepath = f"./au_temp/{outputstring}"
+        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
+
+    # We'll only download the file if it doesn't exist
+    print("Download path: " + filepath)
+    if not os.path.exists(filepath + ".mp3"):
+        result = subprocess.run(command)
 
     return outputstring
 
@@ -430,6 +416,17 @@ def queueHandlerCall():
     # We need to do it this way otherwise, it ain't async
     asyncio.run(queueHandler())
 
+async def start_leave_timer():
+    await logger(1, "Started leave timer")
+    await asyncio.sleep(120)  # Wait for 120 seconds (2 minutes)
+    await leave_if_idle()
+
+async def leave_if_idle():
+    global voiceclient
+    if voiceclient is not None and not voiceclient.is_playing():
+        await voiceclient.disconnect()
+        voiceclient = None
+        await logger(1, "Left voice channel due to inactivity")
 
 @bot.tree.command(name="play")
 @app_commands.describe(url = "YouTube video URL")
@@ -461,8 +458,7 @@ async def play(interaction: discord.Interaction, url: str):
 
             if not voiceclient.is_playing():
                 try:
-                    embed = discord.Embed(title="Music Playback", description=f"Starting playback of {url} in {voicechannel.mention} ...")
-                    await interaction.response.send_message(embed=embed, ephemeral=True)
+                    await interaction.response.send_message(f"Starting playback of {url} in {voicechannel.mention} ...", ephemeral=True)
                     await logger(1, "Start audio download")
                     result = await bot.loop.run_in_executor(None, download_music, url)
                     await logger(1, "Stop audio download")
@@ -478,16 +474,15 @@ async def play(interaction: discord.Interaction, url: str):
                         sourcepath = f"./au_temp/{outputstring}.mp3"
 
                     sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
+
                     await logger(1, f"Starting playback in voice channel {voiceclient.channel.name}")
-                    embed = discord.Embed(title="Music Playback", description=f"Now playing {url} in {voicechannel.mention} ...")
-                    await interaction.edit_original_response(embed=embed)
+
+                    await interaction.edit_original_response(content="Now playing "+url+" in "+voicechannel.mention+" ...")
+                    
                     player = voiceclient.play(sourcefile)
 
                     while voiceclient.is_playing():
                         await asyncio.sleep(1)
-
-                    # Auto-sanitising the music downloads folder
-                    os.remove(sourcepath)
 
                     # Playing the queue if exists
                     while (len(playQueueFiles) > 0):
@@ -499,10 +494,11 @@ async def play(interaction: discord.Interaction, url: str):
                         while voiceclient.is_playing():
                             await asyncio.sleep(1)
 
-                        os.remove(sourcepath)
-
+                        
                     voiceclient.stop()
 
+                    # Start the auto-leave timer
+                    await start_leave_timer()
 
                 except Exception as ex:
                     await msgchannel.send("An error occured!")
@@ -510,13 +506,16 @@ async def play(interaction: discord.Interaction, url: str):
 
             elif voiceclient.is_playing():
                 # Adding link to queued URLs
-                embed = discord.Embed(title="Music Playback", description=f"Added {url} to queue")
+                embed = discord.Embed(title="Music Playback", description=f"Adding {url} to queue...")
                 await interaction.response.send_message(embed=embed, ephemeral=True)
                 playQueueUrls.append(url)
 
                 queueThread = threading.Thread(target=queueHandlerCall)
                 if not queueThread.is_alive():
                     queueThread.start()
+
+                embed = discord.Embed(title="Music Playback", description=f"Added {url} to queue!", color=discord.Color.green())
+                await interaction.edit_original_response(embed=embed)
 
         else:
             await logger(1, f"{interaction.user.name}#{interaction.user.discriminator} tried to invite bot to voice, but user isn't in a voice channel!")
@@ -538,19 +537,23 @@ async def skip(interaction: discord.Interaction):
                 vchannel: discord.VoiceChannel = vclient.channel
                 if vchannel.name == interaction.user.voice.channel.name:
                     vclient.stop()
-                    await interaction.response.send_message("Skipped current song", ephemeral=True)
+                    embed = discord.Embed(title="Music playback", description="Skipped current song!", colour=discord.Color.green())
+                    await interaction.response.send_message(embed=embed, ephemeral=True)
                     await logger(1, "Song skipped")
         else:
-            await interaction.response.send_message("No song is playing", ephemeral=True)
+            embed = discord.Embed(title="Music playback", description="No media is playing", colour=discord.Color.red())
+            await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
-        await interaction.response.send_message("An error occured!", ephemeral=True)
+        embed = discord.Embed(title="Music playback", description="An error occured!", colour=discord.Color.red())
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 @bot.tree.command(name="stop")
 async def stop(interaction: discord.Interaction):
     """Stops current playback and clears queue"""
+    output: str = ""
     try:
         await logger(1, f"Stop command issued")
         global playQueueFiles
@@ -562,7 +565,7 @@ async def stop(interaction: discord.Interaction):
                     os.remove(item)
 
         else:
-            await interaction.response.send_message("No song is playing", ephemeral=True)
+            output = "No song is playing"
 
         # Clearing queue
         playQueueFiles = []
@@ -573,8 +576,12 @@ async def stop(interaction: discord.Interaction):
             vchannel: discord.VoiceChannel = vclient.channel
             if vchannel.name == interaction.user.voice.channel.name:
                 vclient.stop()
-                await interaction.response.send_message("Stopped playback", ephemeral=True)
+                output = "Stopped playback"
                 await logger(1, "Stopped playback")
+
+
+        embed = discord.Embed(title="Music playback", description=output)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
     except Exception as ex:
         await logger(3, f"An exception occured: {ex}")
