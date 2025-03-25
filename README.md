@@ -1,7 +1,7 @@
 # Hyperion Discord Bot
 Main repo for the Hyperion Discord Bot (Engine/Base)
 
-This bot is made in python3, to launch, use `python3 ./bot.py`
+This bot is made in python3, to launch, use `python3 ./bot.py`, `python ./bot.py` or just `./bot.py` after setting the execute bit.
 
 Required modules to launch the bot
 - `discord`

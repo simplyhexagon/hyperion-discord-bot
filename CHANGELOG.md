@@ -1,5 +1,13 @@
 # Hyperion Discord Bot - Changelog
 
+2025-03-26
+- Removed code that still used the "discriminators" from Discord, as they have moved onto the `@username` system.
+- The `configs` folder is now properly part of the repo with an appropriate `.gitignore`
+- Temporarily moved the old version to `bot.py.old`
+- Change the splash to a one-liner. More difficult to read, easier to interpret for Python
+
+- Bumped vernum to 0.8
+
 2023-06-27
 - Removed remainders of pytube implementation
 - The bot now downloads audios named as the YouTube video ID, instead of a randomly generated name
