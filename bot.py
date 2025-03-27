@@ -1,4 +1,7 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+
+# Hyperion Discord Bot by @simplyhexagon
+
 # Imports
 
 # Discord stuff
@@ -37,7 +40,7 @@ import re
 
 # Constants
 IS_BOT_DEV = True
-BOT_VERSION: str = "0.8"
+BOT_VERSION: str = "0.8-rc1"
 
 CONFIG_PATH: str = "./configs/config.json"
 TOKEN_PATH: str = "./configs/token.json"
@@ -51,6 +54,12 @@ global database
 
 global badWordsDict
 badWordsDict = []
+
+global playQueueUrls
+global playQueueFiles
+
+playQueueUrls = []
+playQueueFiles = []
 
 # Setting up log file
 log = logging.basicConfig(filename='bot.log', encoding='utf-8', level=logging.DEBUG)
@@ -168,7 +177,7 @@ async def audio_delete():
     audiofiles = os.listdir(path)
 
     for item in audiofiles:
-        if(item.endswith('.mp3')):
+        if(item.endswith('.opus')):
             removefile = str(os.path.join(path, item))
             await logger(1, f"Removing file: {removefile}")
             os.remove(removefile)
@@ -359,6 +368,7 @@ async def join(interaction: discord.Interaction):
 @bot.tree.command(name="leave")
 async def leave(interaction: discord.Interaction):
     """Leave voice channel"""
+    await logger(1, f"Leave command issued")
     try:
         await logger(1, f"Disconnecting voice client")
         vchannel: discord.VoiceChannel = voiceclient.channel
@@ -388,25 +398,21 @@ def download_music(url: str):
 
     if(is_os_windows):
         filepath = f".\\au_temp\\{outputstring}"
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
-
     else:
         filepath = f"./au_temp/{outputstring}"
-        command = [f"{ytdl_path}", f"{url}", "-f", "251", "-x", "--audio-format", "mp3", "--output", filepath]
+
+    command = [f"{ytdl_path}", f"{url}", "-N", "4", "--no-part", "-f", "251", "-x", "--audio-format", "opus", "--output", filepath]
 
     # We'll only download the file if it doesn't exist
-    print("Download path: " + filepath)
-    if not os.path.exists(filepath + ".mp3"):
+    if not os.path.exists(filepath + ".opus"):
         result = subprocess.run(command)
 
     return outputstring
 
-
-playQueueUrls = []
-playQueueFiles = []
-
 async def queueHandler():
     await logger(1, "Called queueHandler")
+
+    global playQueueUrls
     while (len(playQueueUrls) > 0):
         # "Pop" the first item of the URL list, so we can store it and
         # it gets removed from the list/array/whatever
@@ -416,10 +422,11 @@ async def queueHandler():
         sourcepath: str = ""
 
         if(is_os_windows):
-            sourcepath = f".\\au_temp\\{outputstring}.mp3"
+            sourcepath = f".\\au_temp\\{outputstring}.opus"
         else:
-            sourcepath = f"./au_temp/{outputstring}.mp3"
+            sourcepath = f"./au_temp/{outputstring}.opus"
 
+        global playQueueFiles
         playQueueFiles.append(sourcepath)
 
 def queueHandlerCall():
@@ -427,7 +434,7 @@ def queueHandlerCall():
     asyncio.run(queueHandler())
 
 async def start_leave_timer():
-    await logger(1, "Started leave timer")
+    await logger(1, "Started leave timer - 2 minutes")
     await asyncio.sleep(120)  # Wait for 120 seconds (2 minutes)
     await leave_if_idle()
 
@@ -468,20 +475,18 @@ async def play(interaction: discord.Interaction, url: str):
 
             if not voiceclient.is_playing():
                 try:
-                    await interaction.response.send_message(f"Starting playback of {url} in {voicechannel.mention} ...", ephemeral=True)
+                    await interaction.response.send_message(f"Starting playback of {url} in {voicechannel.mention} ...", ephemeral=False)
                     await logger(1, "Start audio download")
                     result = await bot.loop.run_in_executor(None, download_music, url)
                     await logger(1, "Stop audio download")
                     outputstring = result
-                    await logger(1, f"Output string: {outputstring}")
-
                     
                     voiceclient.stop()
                     sourcepath: str = ""
                     if(is_os_windows):
-                        sourcepath = f".\\au_temp\\{outputstring}.mp3"
+                        sourcepath = f".\\au_temp\\{outputstring}.opus"
                     else:
-                        sourcepath = f"./au_temp/{outputstring}.mp3"
+                        sourcepath = f"./au_temp/{outputstring}.opus"
 
                     sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
 
@@ -495,6 +500,7 @@ async def play(interaction: discord.Interaction, url: str):
                         await asyncio.sleep(1)
 
                     # Playing the queue if exists
+                    global playQueueFiles
                     while (len(playQueueFiles) > 0):
                         sourcepath = playQueueFiles.pop(0)
                         sourcefile = FFmpegPCMAudio(sourcepath, executable=ffmpeg_path)
@@ -517,7 +523,7 @@ async def play(interaction: discord.Interaction, url: str):
             elif voiceclient.is_playing():
                 # Adding link to queued URLs
                 embed = discord.Embed(title="Music Playback", description=f"Adding {url} to queue...")
-                await interaction.response.send_message(embed=embed, ephemeral=True)
+                await interaction.response.send_message(embed=embed, ephemeral=False)
                 playQueueUrls.append(url)
 
                 queueThread = threading.Thread(target=queueHandlerCall)
@@ -541,6 +547,7 @@ async def skip(interaction: discord.Interaction):
     """Skips current song"""
     try:
         await logger(1, f"Skip command issued")
+        global playQueueFiles
         if(len(playQueueFiles) > 0):
             vclients = bot.voice_clients
             for vclient in vclients:
@@ -566,20 +573,11 @@ async def stop(interaction: discord.Interaction):
     output: str = ""
     try:
         await logger(1, f"Stop command issued")
+
         global playQueueFiles
-        if(len(playQueueFiles) > 0):
-            # Sanitising au_temp
-            for item in playQueueFiles:
-                if(item.endswith('.mp3')):
-                    await logger(1, f"Removing file: {item}")
-                    os.remove(item)
+        global playQueueUrls
 
-        else:
-            output = "No song is playing"
-
-        # Clearing queue
-        playQueueFiles = []
-        playQueueUrls = []
+        # Removed audio folder sanitisation because that's dumb
 
         vclients = bot.voice_clients
         for vclient in vclients:
@@ -588,7 +586,13 @@ async def stop(interaction: discord.Interaction):
                 vclient.stop()
                 output = "Stopped playback"
                 await logger(1, "Stopped playback")
+            else:
+                output = "No song is playing"
 
+        if(not(len(playQueueFiles) == 0 and len(playQueueUrls) == 0)):
+            # Clearing queue
+            playQueueFiles = []
+            playQueueUrls = []
 
         embed = discord.Embed(title="Music playback", description=output)
         await interaction.response.send_message(embed=embed, ephemeral=True)

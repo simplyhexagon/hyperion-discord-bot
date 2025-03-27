@@ -1,11 +1,19 @@
 # Hyperion Discord Bot - Changelog
 
+2025-03-27, 03-28
+*Worked through midnight, lol*
+- Changed download format to opus to skip converting it to mp3, for significant speed gains
+- `yt-dlp` now uses 4 simultaneous streams for download
+- Added a `.gitignore` to `./au_temp` as well
+- Added `TODO.md` to track tasks
+- Changed vernum to `0.8-rc1` since we're close to finalising features
+
 2025-03-26
 - Removed code that still used the "discriminators" from Discord, as they have moved onto the `@username` system.
 - The `configs` folder is now properly part of the repo with an appropriate `.gitignore`
 - Temporarily moved the old version to `bot.py.old`
 - Change the splash to a one-liner. More difficult to read, easier to interpret for Python
-
+- Removed the "ephemeral" attribute from a few responses
 - Bumped vernum to 0.8
 
 2023-06-27
