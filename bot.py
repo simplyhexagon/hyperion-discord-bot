@@ -401,7 +401,7 @@ def download_music(url: str):
     else:
         filepath = f"./au_temp/{outputstring}"
 
-    command = [f"{ytdl_path}", f"{url}", "-N", "4", "--no-part", "-f", "251", "-x", "--audio-format", "opus", "--output", filepath]
+    command = [f"{ytdl_path}", f"{url}", "-N", "4", "--no-part", "-f", "ba", "-x", "--audio-format", "opus", "--output", filepath]
 
     # We'll only download the file if it doesn't exist
     if not os.path.exists(filepath + ".opus"):
