@@ -58,6 +58,8 @@ badWordsDict = []
 global playQueueUrls
 global playQueueFiles
 
+global voiceclient
+
 playQueueUrls = []
 playQueueFiles = []
 
@@ -370,6 +372,7 @@ async def leave(interaction: discord.Interaction):
     """Leave voice channel"""
     await logger(1, f"Leave command issued")
     try:
+        global voiceclient
         await logger(1, f"Disconnecting voice client")
         vchannel: discord.VoiceChannel = voiceclient.channel
         if vchannel.name == interaction.user.voice.channel.name:
